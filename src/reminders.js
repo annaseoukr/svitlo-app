@@ -56,11 +56,11 @@ export async function scheduleReminders(settings, data) {
       for (const iv of norm(day.queues?.[settings.queue])) {
         const when = kyivToDate(date, iv.s - settings.remind);
         if (when.getTime() <= now + 30000) continue;
-        const lead = settings.remind === 60 ? '1 год' : `${settings.remind} хв`;
         await N.scheduleNotificationAsync({
           content: {
-            title: `Через ${lead} відключення`,
+            title: `Через ${settings.remind} хв відключення`,
             body: `Черга ${settings.queue} · ${op.short} · ${iv.from}–${iv.to}${data.demo ? ' (демо-графік)' : ''}`,
+            sound: 'default',
           },
           trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when, channelId: 'reminders' },
         });
@@ -75,7 +75,7 @@ export async function sendTest(title, body) {
   if (!(await ensureReady())) return false;
   try {
     await N.scheduleNotificationAsync({
-      content: { title, body },
+      content: { title, body, sound: 'default' },
       trigger: { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, channelId: 'reminders' },
     });
     return true;

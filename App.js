@@ -4,13 +4,13 @@ import { Animated, Platform, Pressable, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from './src/components';
 import { OPERATORS, loadSchedule, norm } from './src/data';
-import { AllScreen, MyScreen, NewsScreen, Onboarding, SettingsScreen } from './src/screens';
+import { AllScreen, HelpScreen, MyScreen, NewsScreen, Onboarding, SettingsScreen } from './src/screens';
 import { notificationsAvailable, scheduleReminders, sendTest } from './src/reminders';
 import { load, remove, save } from './src/storage';
 import { useColors } from './src/theme';
 import { addDays, fmtDate, kyivNow } from './src/time';
 
-const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 30, onboarded: false };
+const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, onboarded: false };
 const KEY = 'svitlo.settings.v1';
 
 const TABS = [
@@ -60,10 +60,15 @@ function Main() {
   const [tab, setTab] = useState('my');
   const [toast, setToast] = useState(null);
   const [alertOn, setAlertOn] = useState(false);
+  const [help, setHelp] = useState(null);
   const [now, setNow] = useState(kyivNow());
 
   useEffect(() => {
-    load(KEY).then((s) => setSettings({ ...DEFAULTS, ...(s || {}) }));
+    load(KEY).then((s) => {
+      const merged = { ...DEFAULTS, ...(s || {}) };
+      if (merged.remind > 30) merged.remind = 30; // раніше був варіант «за 1 год»
+      setSettings(merged);
+    });
     loadSchedule().then(setData);
     const t = setInterval(() => setNow(kyivNow()), 30000);
     return () => clearInterval(t);
@@ -90,8 +95,8 @@ function Main() {
     } else {
       const iv = norm(days[now.date]?.queues?.[settings.queue]);
       const next = iv.find((i) => i.s > now.minutes) || iv[0];
-      const m = settings.remind || 30;
-      notify({ title: `Через ${m === 60 ? '1 год' : `${m} хв`} відключення`, body: next ? `Черга ${settings.queue} · ${op} · ${next.from}–${next.to}` : `Черга ${settings.queue} · ${op}` });
+      const m = settings.remind || 15;
+      notify({ title: `Через ${m} хв відключення`, body: next ? `Черга ${settings.queue} · ${op} · ${next.from}–${next.to}` : `Черга ${settings.queue} · ${op}` });
     }
   };
 
@@ -136,11 +141,12 @@ function Main() {
         </View>
 
         <View style={{ flex: 1 }}>
-          {tab === 'my' ? <MyScreen c={c} data={data} settings={settings} now={now} alert={alert} onChangeQueue={() => setTab('settings')} /> : null}
-          {tab === 'all' ? <AllScreen c={c} data={data} settings={settings} now={now} /> : null}
-          {tab === 'news' ? <NewsScreen c={c} /> : null}
-          {tab === 'settings' ? (
-            <SettingsScreen c={c} settings={settings} onChange={update} onPreview={preview} alertOn={alertOn} onToggleAlert={toggleAlert}
+          {help ? <HelpScreen c={c} topic={help} onBack={() => setHelp(null)} /> : null}
+          {!help && tab === 'my' ? <MyScreen c={c} data={data} settings={settings} now={now} alert={alert} onChangeQueue={() => setTab('settings')} /> : null}
+          {!help && tab === 'all' ? <AllScreen c={c} data={data} settings={settings} now={now} /> : null}
+          {!help && tab === 'news' ? <NewsScreen c={c} /> : null}
+          {!help && tab === 'settings' ? (
+            <SettingsScreen c={c} settings={settings} onChange={update} onPreview={preview} alertOn={alertOn} onToggleAlert={toggleAlert} onHelp={setHelp}
               onReset={() => { remove(KEY); setSettings({ ...DEFAULTS }); setTab('my'); }} />
           ) : null}
         </View>
@@ -149,7 +155,7 @@ function Main() {
           {TABS.map((t) => {
             const active = t.id === tab;
             return (
-              <Pressable key={t.id} onPress={() => setTab(t.id)} accessibilityRole="tab" accessibilityState={{ selected: active }}
+              <Pressable key={t.id} onPress={() => { setHelp(null); setTab(t.id); }} accessibilityRole="tab" accessibilityState={{ selected: active }}
                 style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 2 }}>
                 <View style={{ width: 28, height: 4, borderRadius: 2, backgroundColor: active ? c.accent : 'transparent' }} />
                 <T c={c} style={{ fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: active ? '700' : '500', color: active ? c.accent : c.muted }}>{t.label}</T>

@@ -12,10 +12,16 @@ const OP_OPTIONS = [
 
 const REMIND_OPTIONS = [
   { value: 0, label: 'Ні' },
+  { value: 5, label: '5 хв' },
+  { value: 10, label: '10 хв' },
   { value: 15, label: '15 хв' },
   { value: 30, label: '30 хв' },
-  { value: 60, label: '1 год' },
 ];
+
+const OP_FULL = {
+  cek: 'Центральна енергетична компанія',
+  dtek: 'ДТЕК Дніпровські електромережі',
+};
 
 function Screen({ c, children }) {
   return (
@@ -25,19 +31,113 @@ function Screen({ c, children }) {
   );
 }
 
+// Велика кнопка «Я не знаю…»
+function UnsureButton({ c, label, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => ({ minHeight: 56, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: c.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, opacity: pressed ? 0.7 : 1 })}
+    >
+      <T c={c} style={{ color: c.accent, fontWeight: '700', textAlign: 'center' }}>{label}</T>
+    </Pressable>
+  );
+}
+
+// ---------------- Як дізнатися постачальника й чергу ----------------
+export function HelpScreen({ c, topic, onBack }) {
+  const operator = topic === 'operator';
+  const step = (n, title, text) => (
+    <View style={{ flexDirection: 'row', gap: 12 }}>
+      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.yellow, alignItems: 'center', justifyContent: 'center' }}>
+        <T c={c} style={{ color: '#000000', fontWeight: '700' }}>{n}</T>
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <T c={c} style={{ fontWeight: '700' }}>{title}</T>
+        <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>{text}</T>
+      </View>
+    </View>
+  );
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 20, flexGrow: 1 }}>
+      <Pressable onPress={onBack} accessibilityRole="button" style={{ alignSelf: 'flex-start', paddingVertical: 6 }}>
+        <T c={c} style={{ color: c.accent, fontWeight: '600' }}>‹ Назад</T>
+      </Pressable>
+      <T c={c} display style={{ fontSize: 24, lineHeight: 30 }}>
+        {operator ? 'Як дізнатися свого постачальника' : 'Як дізнатися свою чергу'}
+      </T>
+      <Card c={c} style={{ gap: 16 }}>
+        {operator ? (
+          <>
+            {step(1, 'Подивіться рахунок за світло', 'У рахунку або договорі вказано оператора системи розподілу: ЦЕК (Центральна енергетична компанія) або ДТЕК Дніпровські електромережі.')}
+            {step(2, 'Або запитайте в ОСББ чи керуючої компанії', 'Там знають, яка компанія обслуговує ваш будинок.')}
+            {step(3, 'Знайдіть адресу в інструкції', 'На Dnipro media зібрали, де ввести адресу й побачити свого оператора та чергу.')}
+          </>
+        ) : (
+          <>
+            {step(1, 'Відкрийте інструкцію Dnipro media', 'Там зібрано, де ввести свою адресу для ЦЕК і для ДТЕК.')}
+            {step(2, 'Введіть адресу на сайті свого оператора', 'Сервіс покаже номер черги, наприклад 3.2.')}
+            {step(3, 'Поверніться й оберіть чергу', 'Її можна змінити будь-коли в налаштуваннях.')}
+          </>
+        )}
+      </Card>
+      <ExtLink href={GROUP_URL} style={{ backgroundColor: c.accent, borderRadius: 14, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
+        <T c={c} style={{ color: c.accentInk, fontWeight: '700', textAlign: 'center' }}>Відкрити інструкцію на Dnipro media</T>
+      </ExtLink>
+      <View style={{ flex: 1 }} />
+      <Btn c={c} kind="secondary" label={operator ? 'Повернутися до вибору постачальника' : 'Повернутися до вибору черги'} onPress={onBack} />
+    </ScrollView>
+  );
+}
+
 // ---------------- Перший запуск ----------------
+function Intro({ c, onStart }) {
+  const item = (title, text) => (
+    <View style={{ gap: 2 }}>
+      <T c={c} style={{ fontWeight: '700', fontSize: 17 }}>{title}</T>
+      <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>{text}</T>
+    </View>
+  );
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 22, flexGrow: 1 }}>
+      <View style={{ gap: 8 }}>
+        <T c={c} display style={{ fontSize: 34, lineHeight: 40, fontWeight: '900' }}>Світло</T>
+        <T c={c} style={{ fontSize: 18, lineHeight: 24 }}>Графіки відключень для Дніпра від Dnipro media</T>
+      </View>
+      <View style={{ backgroundColor: c.on, borderRadius: 22, padding: 20, gap: 18 }}>
+        <View style={{ gap: 2 }}>
+          <T c={c} style={{ fontWeight: '700', fontSize: 17, color: c.onText }}>Як це працює</T>
+        </View>
+        {[
+          ['Оберіть свою чергу', 'Побачите, коли сьогодні й завтра буде світло, а коли — відключення.'],
+          ['Дізнавайтеся першими', 'Надішлемо сповіщення, щойно ЦЕК чи ДТЕК опублікує або змінить графік.'],
+          ['Не пропустіть відключення', 'Нагадаємо заздалегідь — за 5, 10, 15 чи 30 хвилин.'],
+        ].map(([t, d]) => (
+          <View key={t} style={{ gap: 2 }}>
+            <T c={c} style={{ fontWeight: '700', fontSize: 17, color: c.onText }}>{t}</T>
+            <T c={c} style={{ fontSize: 15, lineHeight: 21, color: c.onSub }}>{d}</T>
+          </View>
+        ))}
+      </View>
+      {item('Дані з офіційних джерел', 'Графіки беремо з каналів ЦЕК і ДТЕК, редакція Dnipro media перевіряє їх.')}
+      {item('Без реєстрації', 'Не просимо імені, телефону чи адреси. Налаштування зберігаються лише на вашому телефоні.')}
+      <View style={{ flex: 1 }} />
+      <Btn c={c} label="Почати" onPress={onStart} />
+    </ScrollView>
+  );
+}
+
 export function Onboarding({ c, initial, onDone }) {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(-1); // -1 — вступ
+  const [help, setHelp] = useState(null); // 'operator' | 'queue'
   const [s, setS] = useState(initial);
   const total = 3;
 
+  if (step === -1) return <Intro c={c} onStart={() => setStep(0)} />;
+  if (help) return <HelpScreen c={c} topic={help} onBack={() => setHelp(null)} />;
+
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 20, flexGrow: 1 }}>
-      <View style={{ gap: 6 }}>
-        <T c={c} display style={{ fontSize: 28, lineHeight: 34 }}>Світло</T>
-        <T c={c} style={{ color: c.muted }}>Графіки відключень для Дніпра від Dnipro media</T>
-      </View>
-
       <View style={{ flexDirection: 'row', gap: 6 }} accessibilityLabel={`Крок ${step + 1} з ${total}`}>
         {[0, 1, 2].map((i) => (
           <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? c.accent : c.line }} />
@@ -47,7 +147,7 @@ export function Onboarding({ c, initial, onDone }) {
       {step === 0 ? (
         <View style={{ gap: 14 }}>
           <T c={c} display style={{ fontSize: 22, lineHeight: 28 }}>Хто постачає вам світло?</T>
-          <T c={c} style={{ color: c.muted }}>Назву компанії видно в рахунку за електроенергію або в особистому кабінеті.</T>
+          <T c={c} style={{ color: c.muted }}>Оператора видно в рахунку за електроенергію або в договорі.</T>
           {['cek', 'dtek'].map((op) => {
             const active = s.operator === op;
             return (
@@ -59,10 +159,11 @@ export function Onboarding({ c, initial, onDone }) {
                 style={{ padding: 18, borderRadius: 16, borderWidth: 2, borderColor: active ? c.accent : c.line, backgroundColor: active ? c.accentSoft : c.surface, gap: 2 }}
               >
                 <T c={c} display style={{ fontSize: 20, lineHeight: 26 }}>{OPERATORS[op].short}</T>
-                <T c={c} style={{ color: c.muted, fontSize: 14 }}>{op === 'cek' ? 'Більшість будинків Дніпра' : 'ДТЕК Дніпровські електромережі'}</T>
+                <T c={c} style={{ color: c.muted, fontSize: 15 }}>{OP_FULL[op]}</T>
               </Pressable>
             );
           })}
+          <UnsureButton c={c} label="Я не знаю свого постачальника" onPress={() => setHelp('operator')} />
         </View>
       ) : null}
 
@@ -71,16 +172,14 @@ export function Onboarding({ c, initial, onDone }) {
           <T c={c} display style={{ fontSize: 22, lineHeight: 28 }}>Ваша черга</T>
           <T c={c} style={{ color: c.muted }}>Оберіть чергу {OPERATORS[s.operator].short}. Її можна змінити будь-коли в налаштуваннях.</T>
           <QueueGrid c={c} queues={QUEUES} value={s.queue} onChange={(q) => setS({ ...s, queue: q })} />
-          <ExtLink href={GROUP_URL} style={{ paddingVertical: 8 }}>
-            <T c={c} style={{ color: c.accent, fontWeight: '600' }}>Не знаєте свою чергу? Як її дізнатися ›</T>
-          </ExtLink>
+          <UnsureButton c={c} label="Я не знаю свою чергу" onPress={() => setHelp('queue')} />
         </View>
       ) : null}
 
       {step === 2 ? (
         <View style={{ gap: 14 }}>
           <T c={c} display style={{ fontSize: 22, lineHeight: 28 }}>Сповіщення</T>
-          <T c={c} style={{ color: c.muted }}>Ми надсилатимемо лише те, що стосується черги {s.queue}.</T>
+          <T c={c} style={{ color: c.muted }}>Надсилатимемо лише те, що стосується черги {s.queue}, зі стандартним звуком сповіщення.</T>
           <Card c={c} style={{ paddingVertical: 6 }}>
             <ToggleRow c={c} label="Новий графік і зміни" hint="Щойно оператор опублікує або змінить графік" value={s.notifyChanges} onChange={(v) => setS({ ...s, notifyChanges: v })} />
             <ToggleRow c={c} label="Екстрені відключення" hint="Коли графіки перестають діяти" value={s.notifyEmergency} onChange={(v) => setS({ ...s, notifyEmergency: v })} />
@@ -92,7 +191,7 @@ export function Onboarding({ c, initial, onDone }) {
 
       <View style={{ flex: 1 }} />
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        {step > 0 ? <Btn c={c} kind="secondary" label="Назад" onPress={() => setStep(step - 1)} style={{ flex: 1 }} /> : null}
+        <Btn c={c} kind="secondary" label="Назад" onPress={() => setStep(step - 1)} style={{ flex: 1 }} />
         <Btn
           c={c}
           label={step < total - 1 ? 'Далі' : 'Готово'}
@@ -361,7 +460,7 @@ export function NewsScreen({ c }) {
 }
 
 // ---------------- Налаштування ----------------
-export function SettingsScreen({ c, settings, onChange, onReset, onPreview, alertOn, onToggleAlert }) {
+export function SettingsScreen({ c, settings, onChange, onReset, onPreview, alertOn, onToggleAlert, onHelp }) {
   const set = (patch) => onChange({ ...settings, ...patch });
   return (
     <Screen c={c}>
@@ -371,6 +470,7 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, aler
         <Label c={c}>Мій графік</Label>
         <Segmented c={c} options={OP_OPTIONS} value={settings.operator} onChange={(v) => set({ operator: v })} />
         <QueueGrid c={c} queues={QUEUES} value={settings.queue} onChange={(q) => set({ queue: q })} />
+        <UnsureButton c={c} label="Я не знаю свою чергу" onPress={() => onHelp('queue')} />
       </View>
 
       <View style={{ gap: 10 }}>

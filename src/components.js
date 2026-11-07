@@ -102,7 +102,7 @@ export function ToggleRow({ c, label, hint, value, onChange }) {
         <T c={c} style={{ fontWeight: '600' }}>{label}</T>
         {hint ? <T c={c} style={{ fontSize: 14, lineHeight: 19, color: c.muted }}>{hint}</T> : null}
       </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: c.accent, false: c.line }} thumbColor="#FFFFFF" accessibilityLabel={label} />
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: c.accent, false: c.line }} thumbColor="#FFFFFF" activeThumbColor="#FFFFFF" accessibilityLabel={label} />
     </View>
   );
 }
