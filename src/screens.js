@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, View } from 'react-native';
-import { Btn, Card, ExtLink, Label, Legend, QueueGrid, Segmented, Strip, T, ToggleRow } from './components';
+import { BrandCross, Btn, Card, ExtLink, Label, Legend, QueueGrid, Segmented, Strip, T, ToggleRow } from './components';
 import { GROUP_URL, OPERATORS, QUEUES, SITE, SITE_NEWS, loadNews, norm, statusNow } from './data';
-import { SOUNDS, notificationsAvailable, openNotificationSettings } from './reminders';
+import { MODES, notificationsAvailable, openNotificationSettings } from './reminders';
 import { addDays, fmtDate, fmtDuration, fmtUpdated, weekday } from './time';
 
 const OP_OPTIONS = [
@@ -93,29 +93,30 @@ export function HelpScreen({ c, topic, onBack }) {
 // ---------------- Перший запуск ----------------
 function Intro({ c, onStart }) {
   const item = (title, text) => (
-    <View style={{ gap: 2 }}>
-      <T c={c} style={{ fontWeight: '700', fontSize: 17 }}>{title}</T>
-      <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>{text}</T>
+    <View style={{ gap: 1 }}>
+      <T c={c} style={{ fontWeight: '700', fontSize: 15, lineHeight: 20 }}>{title}</T>
+      <T c={c} style={{ color: c.muted, fontSize: 14, lineHeight: 19 }}>{text}</T>
     </View>
   );
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 22, flexGrow: 1 }}>
-      <View style={{ gap: 8 }}>
-        <T c={c} display style={{ fontSize: 34, lineHeight: 40, fontWeight: '900' }}>Світло</T>
-        <T c={c} style={{ fontSize: 18, lineHeight: 24 }}>Графіки відключень для Дніпра від Dnipro media</T>
-      </View>
-      <View style={{ backgroundColor: c.on, borderRadius: 22, padding: 20, gap: 18 }}>
-        <View style={{ gap: 2 }}>
-          <T c={c} style={{ fontWeight: '700', fontSize: 17, color: c.onText }}>Як це працює</T>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, gap: 14, flexGrow: 1 }}>
+      <View style={{ gap: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <BrandCross size={25} color={c.yellow} />
+          <T c={c} display style={{ fontSize: 28, lineHeight: 34, fontWeight: '900' }}>Світло</T>
         </View>
+        <T c={c} style={{ fontSize: 16, lineHeight: 21 }}>Графіки відключень для Дніпра від Dnipro media</T>
+      </View>
+      <View style={{ backgroundColor: c.on, borderRadius: 20, padding: 16, gap: 10 }}>
+        <T c={c} style={{ fontWeight: '700', fontSize: 15, color: c.onText }}>Як це працює</T>
         {[
           ['Оберіть свою чергу', 'Побачите, коли сьогодні й завтра буде світло, а коли — відключення.'],
           ['Дізнавайтеся першими', 'Надішлемо сповіщення, щойно ЦЕК чи ДТЕК опублікує або змінить графік.'],
           ['Не пропустіть відключення', 'Нагадаємо заздалегідь — за 5, 10, 15 чи 30 хвилин.'],
         ].map(([t, d]) => (
-          <View key={t} style={{ gap: 2 }}>
-            <T c={c} style={{ fontWeight: '700', fontSize: 17, color: c.onText }}>{t}</T>
-            <T c={c} style={{ fontSize: 15, lineHeight: 21, color: c.onSub }}>{d}</T>
+          <View key={t} style={{ gap: 1 }}>
+            <T c={c} style={{ fontWeight: '700', fontSize: 15, lineHeight: 20, color: c.onText }}>{t}</T>
+            <T c={c} style={{ fontSize: 14, lineHeight: 19, color: c.onSub }}>{d}</T>
           </View>
         ))}
       </View>
@@ -267,30 +268,37 @@ function DayBlock({ c, day, queue, nowMin, op, today }) {
   }
   const iv = norm(day.queues?.[queue]);
   const total = iv.reduce((a, i) => a + (i.e - i.s), 0);
+  // Сьогодні показуємо лише те, що ще попереду; минулих відключень у списку немає.
+  const shown = nowMin == null ? iv : iv.filter((i) => i.e > nowMin);
   return (
     <Card c={c} style={{ gap: 14 }}>
       <Strip c={c} intervals={iv} nowMin={nowMin} />
       <Legend c={c} />
-      <View style={{ height: 1, backgroundColor: c.line }} />
-      {iv.length ? (
-        <View style={{ gap: 2 }}>
-          {iv.map((i, k) => {
-            const active = nowMin != null && nowMin >= i.s && nowMin < i.e;
-            const past = nowMin != null && nowMin >= i.e;
-            return (
-              <View key={k} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, opacity: past ? 0.5 : 1 }}>
-                <T c={c} display style={{ fontSize: 20, lineHeight: 26, fontVariant: ['tabular-nums'] }}>{i.from}–{i.to}</T>
-                <T c={c} style={{ color: active ? c.now : c.muted, fontWeight: active ? '700' : '400', fontSize: 15 }}>
-                  {active ? 'триває' : past ? 'минуло' : fmtDuration(i.e - i.s)}
-                </T>
-              </View>
-            );
-          })}
-          <T c={c} style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>Разом без світла: {fmtDuration(total)}</T>
-        </View>
-      ) : (
-        <T c={c} style={{ fontWeight: '600' }}>Відключень не заплановано</T>
-      )}
+      {!iv.length ? (
+        <>
+          <View style={{ height: 1, backgroundColor: c.line }} />
+          <T c={c} style={{ fontWeight: '600' }}>Відключень не заплановано</T>
+        </>
+      ) : shown.length ? (
+        <>
+          <View style={{ height: 1, backgroundColor: c.line }} />
+          <View style={{ gap: 2 }}>
+            {nowMin != null ? <Label c={c}>Далі за графіком</Label> : null}
+            {shown.map((i, k) => {
+              const active = nowMin != null && nowMin >= i.s && nowMin < i.e;
+              return (
+                <View key={k} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+                  <T c={c} display style={{ fontSize: 20, lineHeight: 26, fontVariant: ['tabular-nums'] }}>{i.from}–{i.to}</T>
+                  <T c={c} style={{ color: active ? c.now : c.muted, fontWeight: active ? '700' : '400', fontSize: 15 }}>
+                    {active ? 'триває' : fmtDuration(i.e - i.s)}
+                  </T>
+                </View>
+              );
+            })}
+            {nowMin == null ? <T c={c} style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>Разом без світла: {fmtDuration(total)}</T> : null}
+          </View>
+        </>
+      ) : null}
       <View style={{ height: 1, backgroundColor: c.line }} />
       <View style={{ gap: 10 }}>
         <T c={c} style={{ color: c.muted, fontSize: 14 }}>Оновлено {fmtUpdated(day.updated_at, today)} · {op}</T>
@@ -495,18 +503,31 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
       </View>
 
       <View style={{ gap: 10 }}>
-        <Label c={c}>Звук сповіщень</Label>
-        <Segmented c={c} options={SOUNDS.map((x) => ({ value: x.id, label: x.label }))} value={settings.sound || 'default'} onChange={(v) => set({ sound: v })} />
-        <Btn c={c} label="Перевірити звук" onPress={onPreview} />
-        <Card c={c} style={{ gap: 8 }}>
-          <T c={c} style={{ fontWeight: '700' }}>Гучність</T>
-          <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>
-            Гучність сповіщень регулює телефон: кнопки гучності або «Налаштування» → «Звук». Для екстрених відключень застосунок використовує окремий гучний сигнал.
-          </T>
-          {notificationsAvailable && Platform.OS === 'android' ? (
-            <Btn c={c} kind="secondary" label="Відкрити налаштування сповіщень" onPress={openNotificationSettings} />
-          ) : null}
+        <Label c={c}>Як сповіщати</Label>
+        <Card c={c} style={{ paddingVertical: 4, paddingHorizontal: 0 }}>
+          {MODES.map((m, k) => {
+            const active = (settings.notifyMode || 'sound') === m.id;
+            return (
+              <Pressable key={m.id} onPress={() => set({ notifyMode: m.id })} accessibilityRole="radio" accessibilityState={{ checked: active }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: k ? 1 : 0, borderTopColor: c.line }}>
+                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: active ? c.accent : c.muted, alignItems: 'center', justifyContent: 'center' }}>
+                  {active ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.accent }} /> : null}
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T c={c} style={{ fontWeight: '600' }}>{m.label}</T>
+                  <T c={c} style={{ fontSize: 14, lineHeight: 19, color: c.muted }}>{m.hint}</T>
+                </View>
+              </Pressable>
+            );
+          })}
         </Card>
+        <Btn c={c} label="Перевірити сповіщення" onPress={onPreview} />
+        <T c={c} style={{ color: c.muted, fontSize: 14, lineHeight: 19 }}>
+          Про екстрені відключення застосунок завжди сповіщає окремим гучнішим сигналом. Гучність регулюють кнопки гучності телефона.
+        </T>
+        {notificationsAvailable && Platform.OS === 'android' ? (
+          <Btn c={c} kind="secondary" label="Налаштування сповіщень телефона" onPress={openNotificationSettings} />
+        ) : null}
       </View>
 
       <View style={{ gap: 10 }}>

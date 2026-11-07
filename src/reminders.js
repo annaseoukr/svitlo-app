@@ -15,18 +15,20 @@ if (native) {
 
 export const notificationsAvailable = native;
 
-// Звуки, які людина може обрати. Файли синтезовано для застосунку (assets/sounds).
-export const SOUNDS = [
-  { id: 'default', label: 'Стандартний', file: null },
-  { id: 'signal', label: 'Сигнал', file: 'signal.wav' },
-  { id: 'bell', label: 'Дзвіночок', file: 'bell.wav' },
+// Як приходять нагадування — обирає людина. Звук один, нейтральний (assets/sounds/notify.wav);
+// екстрені відключення мають власний, інший звук (alarm.wav), і його не змінити.
+export const MODES = [
+  { id: 'sound', label: 'Звук і вібрація', hint: 'Рекомендовано: точно не пропустите' },
+  { id: 'vibrate', label: 'Лише вібрація', hint: 'Без звуку, телефон вібрує' },
+  { id: 'screen', label: 'Лише на екрані', hint: 'Без звуку й вібрації' },
 ];
-const ALARM = 'alarm.wav'; // окремий гучний звук для екстрених відключень
+const NOTIFY = 'notify.wav';
+const ALARM = 'alarm.wav';
+const LEGACY = ['reminders', 'remind-default', 'remind-signal', 'remind-bell'];
 
-// На Android звук задається каналом сповіщень, і змінити його потім не можна,
-// тому для кожного звуку — свій канал.
-const channelFor = (soundId) => `remind-${soundId}`;
-const soundFile = (soundId) => SOUNDS.find((s) => s.id === soundId)?.file || null;
+// На Android звук і вібрацію задає канал сповіщень, і змінити їх потім не можна,
+// тому для кожного способу — свій канал.
+const channelFor = (mode) => `remind-${MODES.some((m) => m.id === mode) ? mode : 'sound'}`;
 
 // Дата за Києвом + хвилини від початку доби → момент часу.
 function kyivToDate(iso, minutes) {
@@ -43,19 +45,22 @@ async function ensureReady() {
   if (!N) return false;
   try {
     if (!channelsReady && Platform.OS === 'android') {
-      for (const s of SOUNDS) {
-        await N.setNotificationChannelAsync(channelFor(s.id), {
-          name: `Нагадування · ${s.label}`,
-          importance: N.AndroidImportance.HIGH,
-          sound: s.file || 'default',
-          vibrationPattern: [0, 300, 200, 300],
-        });
-      }
+      for (const id of LEGACY) { try { await N.deleteNotificationChannelAsync(id); } catch (e) { /* немає — і добре */ } }
+      await N.setNotificationChannelAsync('remind-sound', {
+        name: 'Нагадування: звук і вібрація', importance: N.AndroidImportance.HIGH,
+        sound: NOTIFY, enableVibrate: true, vibrationPattern: [0, 250, 150, 250],
+      });
+      await N.setNotificationChannelAsync('remind-vibrate', {
+        name: 'Нагадування: лише вібрація', importance: N.AndroidImportance.HIGH,
+        sound: null, enableVibrate: true, vibrationPattern: [0, 250, 150, 250],
+      });
+      await N.setNotificationChannelAsync('remind-screen', {
+        name: 'Нагадування: лише на екрані', importance: N.AndroidImportance.HIGH,
+        sound: null, enableVibrate: false, vibrationPattern: null,
+      });
       await N.setNotificationChannelAsync('emergency', {
-        name: 'Екстрені відключення',
-        importance: N.AndroidImportance.MAX,
-        sound: ALARM,
-        vibrationPattern: [0, 500, 250, 500, 250, 500],
+        name: 'Екстрені відключення', importance: N.AndroidImportance.MAX,
+        sound: ALARM, enableVibrate: true, vibrationPattern: [0, 500, 250, 500, 250, 500],
       });
       channelsReady = true;
     }
@@ -67,8 +72,8 @@ async function ensureReady() {
   }
 }
 
-function content(title, body, soundId) {
-  return { title, body, sound: soundFile(soundId) || 'default' };
+function content(title, body, mode) {
+  return { title, body, sound: (mode || 'sound') === 'sound' ? NOTIFY : false };
 }
 
 export async function scheduleReminders(settings, data) {
@@ -82,12 +87,12 @@ export async function scheduleReminders(settings, data) {
     const today = kyivNow().date;
     const now = Date.now();
     const demo = data.demo ? ' (демо-графік)' : '';
-    const channelId = channelFor(settings.sound || 'default');
+    const channelId = channelFor(settings.notifyMode);
     const at = async (date, minutes, title, body) => {
       const when = kyivToDate(date, minutes);
       if (when.getTime() <= now + 30000) return;
       await N.scheduleNotificationAsync({
-        content: content(title, body, settings.sound),
+        content: content(title, body, settings.notifyMode),
         trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when, channelId },
       });
     };
@@ -114,14 +119,14 @@ export async function scheduleReminders(settings, data) {
   } catch (e) { /* не вдалося запланувати — застосунок працює далі */ }
 }
 
-// Приклад сповіщення з обраним звуком — через 3 секунди.
-export async function sendTest(title, body, soundId) {
+// Перевірка: сповіщення обраним способом — через 3 секунди.
+export async function sendTest(title, body, mode) {
   if (!N) return false;
   if (!(await ensureReady())) return false;
   try {
     await N.scheduleNotificationAsync({
-      content: content(title, body, soundId),
-      trigger: { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, channelId: channelFor(soundId || 'default') },
+      content: content(title, body, mode),
+      trigger: { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, channelId: channelFor(mode) },
     });
     return true;
   } catch (e) {

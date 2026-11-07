@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Animated, Platform, Pressable, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { T } from './src/components';
+import { BrandCross, T } from './src/components';
 import { OPERATORS, loadSchedule, norm } from './src/data';
 import { AllScreen, HelpScreen, MyScreen, NewsScreen, Onboarding, SettingsScreen } from './src/screens';
 import { notificationsAvailable, notifyEmergency, scheduleReminders, sendTest } from './src/reminders';
@@ -10,7 +10,7 @@ import { load, remove, save } from './src/storage';
 import { useColors } from './src/theme';
 import { addDays, fmtDate, kyivNow } from './src/time';
 
-const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, remindOn: 0, sound: 'signal', onboarded: false };
+const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, remindOn: 0, notifyMode: 'sound', onboarded: false };
 const KEY = 'svitlo.settings.v1';
 
 const TABS = [
@@ -102,9 +102,9 @@ function Main() {
     const iv = norm(data?.operators?.[settings.operator]?.days?.[now.date]?.queues?.[settings.queue]);
     const next = iv.find((i) => i.s > now.minutes) || iv[0];
     const m = settings.remind || 15;
-    const t = { title: 'Так звучатимуть сповіщення', body: `Нагадування за ${m} хв до відключення · черга ${settings.queue} · ${op}` };
+    const t = { title: `Через ${m} хв відключення`, body: `Так виглядатимуть нагадування · черга ${settings.queue} · ${op}` };
     if (!notificationsAvailable) { setToast(t); return; }
-    sendTest(t.title, t.body, settings.sound).then((ok) => { if (!ok) setToast(t); });
+    sendTest(t.title, t.body, settings.notifyMode).then((ok) => { if (!ok) setToast(t); });
   };
 
   const root = { flex: 1, backgroundColor: c.bg };
@@ -124,7 +124,8 @@ function Main() {
     <View style={root}>
       <View style={[frame, { paddingTop: insets.top }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ alignSelf: 'center' }}><BrandCross size={20} color={c.yellow} /></View>
             <T c={c} display style={{ fontSize: 22, lineHeight: 28, fontWeight: '900' }}>Світло</T>
             <T c={c} style={{ fontSize: 13, color: c.muted }}>Dnipro media</T>
           </View>
@@ -159,8 +160,8 @@ function Main() {
             return (
               <Pressable key={t.id} onPress={() => { setHelp(null); setTab(t.id); }} accessibilityRole="tab" accessibilityState={{ selected: active }}
                 style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 2 }}>
-                <View style={{ width: 28, height: 4, borderRadius: 2, backgroundColor: active ? c.accent : 'transparent' }} />
-                <T c={c} style={{ fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: active ? '700' : '500', color: active ? c.accent : c.muted }}>{t.label}</T>
+                <View style={{ width: 28, height: 4, borderRadius: 2, backgroundColor: active ? (t.id === 'news' ? c.warn : c.accent) : 'transparent' }} />
+                <T c={c} style={{ fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: active || t.id === 'news' ? '700' : '500', color: t.id === 'news' ? c.warn : active ? c.accent : c.muted }}>{t.label}</T>
               </Pressable>
             );
           })}

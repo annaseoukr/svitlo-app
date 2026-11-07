@@ -156,3 +156,16 @@ export function Legend({ c }) {
     </View>
   );
 }
+
+// Фірмовий хрестик Dnipro media: сітка 5×5 з вирізаним центром (пропорції з логотипа).
+const CROSS = [[0, 2], [1, 1], [1, 2], [1, 3], [2, 0], [2, 1], [2, 3], [2, 4], [3, 1], [3, 2], [3, 3], [4, 2]];
+export function BrandCross({ size = 25, color = '#E8DE6D' }) {
+  const u = Math.round(size / 5);
+  return (
+    <View style={{ width: u * 5, height: u * 5 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {CROSS.map(([r, col]) => (
+        <View key={`${r}-${col}`} style={{ position: 'absolute', left: col * u, top: r * u, width: u, height: u, backgroundColor: color }} />
+      ))}
+    </View>
+  );
+}
