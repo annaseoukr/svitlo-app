@@ -102,7 +102,7 @@ function Main() {
     const iv = norm(data?.operators?.[settings.operator]?.days?.[now.date]?.queues?.[settings.queue]);
     const next = iv.find((i) => i.s > now.minutes) || iv[0];
     const m = settings.remind || 15;
-    const t = { title: `Через ${m} хв відключення`, body: next ? `Черга ${settings.queue} · ${op} · ${next.from}–${next.to} (приклад)` : `Черга ${settings.queue} · ${op} (приклад)` };
+    const t = { title: 'Так звучатимуть сповіщення', body: `Нагадування за ${m} хв до відключення · черга ${settings.queue} · ${op}` };
     if (!notificationsAvailable) { setToast(t); return; }
     sendTest(t.title, t.body, settings.sound).then((ok) => { if (!ok) setToast(t); });
   };

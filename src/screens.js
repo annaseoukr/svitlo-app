@@ -229,7 +229,7 @@ function StatusCard({ c, st, op }) {
     line = `${op} скасував відключення на сьогодні`;
   } else {
     title = 'Графіка ще немає';
-    line = `Повідомимо, щойно ${op} опублікує графік на сьогодні`;
+    line = `Графік зʼявиться тут, щойно ${op} його опублікує`;
   }
   const mint = st.kind === 'on' || st.kind === 'cancelled';
   const bg = dark ? c.offCard : mint ? c.on : c.surface;
@@ -253,7 +253,7 @@ function DayBlock({ c, day, queue, nowMin, op, today }) {
     return (
       <Card c={c}>
         <T c={c} style={{ fontWeight: '700' }}>Графік ще не опублікували</T>
-        <T c={c} style={{ color: c.muted }}>Стежте за оновленнями: надішлемо сповіщення, щойно {op} опублікує графік.</T>
+        <T c={c} style={{ color: c.muted }}>Стежте за оновленнями: графік зʼявиться тут, щойно {op} його опублікує.</T>
       </Card>
     );
   }
@@ -437,7 +437,7 @@ export function NewsScreen({ c }) {
         <Card c={c} style={{ gap: 10 }}>
           <T c={c} style={{ fontWeight: '700' }}>Не вдалося завантажити новини</T>
           <T c={c} style={{ color: c.muted }}>
-            У тестовій версії, відкритій за посиланням, браузер не пускає застосунок до сайту. У застосунку на телефоні тут буде стрічка свіжих новин Dnipro media.
+            Перевірте підключення до інтернету й спробуйте ще раз.
           </T>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <ExtLink href={SITE_NEWS} style={{ backgroundColor: c.accent, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 }}>
@@ -497,7 +497,7 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
       <View style={{ gap: 10 }}>
         <Label c={c}>Звук сповіщень</Label>
         <Segmented c={c} options={SOUNDS.map((x) => ({ value: x.id, label: x.label }))} value={settings.sound || 'default'} onChange={(v) => set({ sound: v })} />
-        <Btn c={c} label="Надіслати приклад сповіщення" onPress={onPreview} />
+        <Btn c={c} label="Перевірити звук" onPress={onPreview} />
         <Card c={c} style={{ gap: 8 }}>
           <T c={c} style={{ fontWeight: '700' }}>Гучність</T>
           <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>
@@ -521,7 +521,6 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
           </ExtLink>
         </Card>
         <Btn c={c} kind="secondary" label="Почати налаштування спочатку" onPress={onReset} />
-        <T c={c} style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>Версія 0.6</T>
       </View>
     </Screen>
   );
