@@ -5,18 +5,18 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { T } from './src/components';
 import { OPERATORS, loadSchedule, norm } from './src/data';
 import { AllScreen, HelpScreen, MyScreen, NewsScreen, Onboarding, SettingsScreen } from './src/screens';
-import { notificationsAvailable, scheduleReminders, sendTest } from './src/reminders';
+import { notificationsAvailable, notifyEmergency, scheduleReminders, sendTest } from './src/reminders';
 import { load, remove, save } from './src/storage';
 import { useColors } from './src/theme';
 import { addDays, fmtDate, kyivNow } from './src/time';
 
-const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, onboarded: false };
+const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, remindOn: 0, sound: 'signal', onboarded: false };
 const KEY = 'svitlo.settings.v1';
 
 const TABS = [
   { id: 'my', label: 'Мій графік' },
   { id: 'all', label: 'Усі черги' },
-  { id: 'news', label: 'Новини' },
+  { id: 'news', label: 'Новини Дніпра' },
   { id: 'settings', label: 'Налаштування' },
 ];
 
@@ -59,7 +59,6 @@ function Main() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('my');
   const [toast, setToast] = useState(null);
-  const [alertOn, setAlertOn] = useState(false);
   const [help, setHelp] = useState(null);
   const [now, setNow] = useState(kyivNow());
 
@@ -77,39 +76,24 @@ function Main() {
   // Нагадування перед відключенням перепланувати, коли змінилися черга, налаштування чи графік.
   useEffect(() => { scheduleReminders(settings, data); }, [settings, data]);
 
-  // На телефоні — справжнє сповіщення, у вебверсії — картка всередині застосунку.
-  const notify = (t) => {
-    if (!notificationsAvailable) { setToast(t); return; }
-    sendTest(t.title, t.body).then((ok) => { if (!ok) setToast(t); });
-  };
+  // Екстрені відключення приходять у даних (alerts). Показуємо банер на головному екрані
+  // і, якщо людина цього хоче, гучне сповіщення.
+  const alert = (data?.alerts || []).find((a) => a.operator === settings?.operator) || null;
+  useEffect(() => {
+    if (alert && settings?.notifyEmergency && settings?.onboarded) notifyEmergency(alert);
+  }, [alert?.id, settings?.notifyEmergency]);
 
   const update = useCallback((s) => { setSettings(s); save(KEY, s); }, []);
 
-  const preview = (kind) => {
+  // Один приклад сповіщення з обраним звуком.
+  const preview = () => {
     const op = OPERATORS[settings.operator].short;
-    const tomorrow = addDays(now.date, 1);
-    const days = data?.operators?.[settings.operator]?.days || {};
-    if (kind === 'schedule') {
-      const iv = norm(days[tomorrow]?.queues?.[settings.queue]);
-      notify({ title: `${op} оновив графік на ${fmtDate(tomorrow)}`, body: `Черга ${settings.queue}: ${iv.length ? iv.map((i) => `${i.from}–${i.to}`).join(', ') : 'без відключень'}` });
-    } else {
-      const iv = norm(days[now.date]?.queues?.[settings.queue]);
-      const next = iv.find((i) => i.s > now.minutes) || iv[0];
-      const m = settings.remind || 15;
-      notify({ title: `Через ${m} хв відключення`, body: next ? `Черга ${settings.queue} · ${op} · ${next.from}–${next.to}` : `Черга ${settings.queue} · ${op}` });
-    }
-  };
-
-  const alert = alertOn ? {
-    title: 'Екстрені відключення',
-    text: `${OPERATORS[settings?.operator || 'cek'].short} застосовує екстрені відключення. Графіки погодинних відключень зараз можуть не діяти.`,
-    time: `Сьогодні о ${String(Math.floor(now.minutes / 60)).padStart(2, '0')}:${String(now.minutes % 60).padStart(2, '0')}`,
-  } : null;
-
-  const toggleAlert = () => {
-    if (!alertOn) notify({ title: 'Екстрені відключення · ЦЕК', body: 'Графіки зараз можуть не діяти. Деталі в застосунку.' });
-    setAlertOn(!alertOn);
-    if (!alertOn) setTab('my');
+    const iv = norm(data?.operators?.[settings.operator]?.days?.[now.date]?.queues?.[settings.queue]);
+    const next = iv.find((i) => i.s > now.minutes) || iv[0];
+    const m = settings.remind || 15;
+    const t = { title: `Через ${m} хв відключення`, body: next ? `Черга ${settings.queue} · ${op} · ${next.from}–${next.to} (приклад)` : `Черга ${settings.queue} · ${op} (приклад)` };
+    if (!notificationsAvailable) { setToast(t); return; }
+    sendTest(t.title, t.body, settings.sound).then((ok) => { if (!ok) setToast(t); });
   };
 
   const root = { flex: 1, backgroundColor: c.bg };
@@ -146,7 +130,7 @@ function Main() {
           {!help && tab === 'all' ? <AllScreen c={c} data={data} settings={settings} now={now} /> : null}
           {!help && tab === 'news' ? <NewsScreen c={c} /> : null}
           {!help && tab === 'settings' ? (
-            <SettingsScreen c={c} settings={settings} onChange={update} onPreview={preview} alertOn={alertOn} onToggleAlert={toggleAlert} onHelp={setHelp}
+            <SettingsScreen c={c} settings={settings} onChange={update} onPreview={preview} onHelp={setHelp}
               onReset={() => { remove(KEY); setSettings({ ...DEFAULTS }); setTab('my'); }} />
           ) : null}
         </View>

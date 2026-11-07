@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, View } from 'react-native';
 import { Btn, Card, ExtLink, Label, Legend, QueueGrid, Segmented, Strip, T, ToggleRow } from './components';
 import { GROUP_URL, OPERATORS, QUEUES, SITE, SITE_NEWS, loadNews, norm, statusNow } from './data';
-import { notificationsAvailable } from './reminders';
+import { SOUNDS, notificationsAvailable, openNotificationSettings } from './reminders';
 import { addDays, fmtDate, fmtDuration, fmtUpdated, weekday } from './time';
 
 const OP_OPTIONS = [
@@ -186,6 +186,8 @@ export function Onboarding({ c, initial, onDone }) {
           </Card>
           <T c={c} style={{ fontWeight: '600' }}>Нагадувати перед відключенням</T>
           <Segmented c={c} options={REMIND_OPTIONS} value={s.remind} onChange={(v) => setS({ ...s, remind: v })} />
+          <T c={c} style={{ fontWeight: '600' }}>Нагадувати перед увімкненням світла</T>
+          <Segmented c={c} options={REMIND_OPTIONS} value={s.remindOn || 0} onChange={(v) => setS({ ...s, remindOn: v })} />
         </View>
       ) : null}
 
@@ -250,7 +252,8 @@ function DayBlock({ c, day, queue, nowMin, op, today }) {
   if (!day) {
     return (
       <Card c={c}>
-        <T c={c} style={{ color: c.muted }}>{op} ще не опублікував графік на цей день. Повідомимо, щойно він зʼявиться.</T>
+        <T c={c} style={{ fontWeight: '700' }}>Графік ще не опублікували</T>
+        <T c={c} style={{ color: c.muted }}>Стежте за оновленнями: надішлемо сповіщення, щойно {op} опублікує графік.</T>
       </Card>
     );
   }
@@ -313,10 +316,10 @@ export function AlertBanner({ c, alert, demo }) {
   return (
     <View style={{ backgroundColor: c.warnSoft, borderRadius: 18, padding: 16, gap: 4, borderWidth: 1, borderColor: c.warn }} accessibilityRole="alert">
       <T c={c} style={{ color: c.warn, fontWeight: '700', fontSize: 14, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-        {alert.title}{demo ? ' · приклад' : ''}
+        {alert.title}
       </T>
       <T c={c} style={{ fontWeight: '600' }}>{alert.text}</T>
-      <T c={c} style={{ color: c.muted, fontSize: 14 }}>{alert.time}</T>
+      <T c={c} style={{ color: c.muted, fontSize: 14 }}>{alert.time || (alert.at ? `${fmtDate(alert.at.slice(0, 10))}, ${alert.at.slice(11, 16)}` : '')}</T>
     </View>
   );
 }
@@ -382,7 +385,7 @@ export function AllScreen({ c, data, settings, now }) {
         { value: 'tomorrow', label: 'Завтра', sub: fmtDate(addDays(today, 1)) },
       ]} />
       {!day ? (
-        <Card c={c}><T c={c} style={{ color: c.muted }}>{op.short} ще не опублікував графік на {fmtDate(date)}.</T></Card>
+        <Card c={c} style={{ gap: 4 }}><T c={c} style={{ fontWeight: '700' }}>Графік на {fmtDate(date)} ще не опублікували</T><T c={c} style={{ color: c.muted }}>Стежте за оновленнями.</T></Card>
       ) : day.status === 'cancelled' ? (
         <Card c={c}><T c={c} style={{ fontWeight: '700' }}>Відключення на {fmtDate(date)} скасовано</T></Card>
       ) : (
@@ -455,12 +458,17 @@ export function NewsScreen({ c }) {
           </Card>
         </ExtLink>
       ))}
+      {!state.loading ? (
+        <ExtLink href={SITE_NEWS} style={{ backgroundColor: c.chip, borderRadius: 14, minHeight: 52, alignItems: 'center', justifyContent: 'center' }}>
+          <T c={c} style={{ fontWeight: '700' }}>Усі новини Дніпра на Dnipro media ›</T>
+        </ExtLink>
+      ) : null}
     </Screen>
   );
 }
 
 // ---------------- Налаштування ----------------
-export function SettingsScreen({ c, settings, onChange, onReset, onPreview, alertOn, onToggleAlert, onHelp }) {
+export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHelp }) {
   const set = (patch) => onChange({ ...settings, ...patch });
   return (
     <Screen c={c}>
@@ -478,22 +486,27 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, aler
         <Card c={c} style={{ paddingVertical: 6 }}>
           <ToggleRow c={c} label="Новий графік і зміни" hint={`Для черги ${settings.queue}`} value={settings.notifyChanges} onChange={(v) => set({ notifyChanges: v })} />
           <View style={{ height: 1, backgroundColor: c.line }} />
-          <ToggleRow c={c} label="Екстрені відключення" value={settings.notifyEmergency} onChange={(v) => set({ notifyEmergency: v })} />
+          <ToggleRow c={c} label="Екстрені відключення" hint="Гучне сповіщення й повідомлення на головному екрані" value={settings.notifyEmergency} onChange={(v) => set({ notifyEmergency: v })} />
         </Card>
         <T c={c} style={{ fontWeight: '600' }}>Нагадувати перед відключенням</T>
         <Segmented c={c} options={REMIND_OPTIONS} value={settings.remind} onChange={(v) => set({ remind: v })} />
-        <T c={c} style={{ color: c.muted, fontSize: 14 }}>
-          {notificationsAvailable
-            ? 'Нагадування перед відключенням уже працюють — поки за демо-графіком. Сповіщення про новий графік і екстрені відключення запрацюють, коли підключимо справжні дані.'
-            : 'У вебверсії сповіщення зʼявляються лише всередині застосунку. На телефоні вони приходять як звичайні сповіщення.'}
-        </T>
+        <T c={c} style={{ fontWeight: '600' }}>Нагадувати перед увімкненням світла</T>
+        <Segmented c={c} options={REMIND_OPTIONS} value={settings.remindOn || 0} onChange={(v) => set({ remindOn: v })} />
       </View>
 
       <View style={{ gap: 10 }}>
-        <Label c={c}>Подивитися, як це виглядатиме</Label>
-        <Btn c={c} kind="secondary" label="Сповіщення про новий графік" onPress={() => onPreview('schedule')} />
-        <Btn c={c} kind="secondary" label="Нагадування перед відключенням" onPress={() => onPreview('remind')} />
-        <Btn c={c} kind="secondary" label={alertOn ? 'Прибрати приклад екстрених відключень' : 'Показати приклад екстрених відключень'} onPress={onToggleAlert} />
+        <Label c={c}>Звук сповіщень</Label>
+        <Segmented c={c} options={SOUNDS.map((x) => ({ value: x.id, label: x.label }))} value={settings.sound || 'default'} onChange={(v) => set({ sound: v })} />
+        <Btn c={c} label="Надіслати приклад сповіщення" onPress={onPreview} />
+        <Card c={c} style={{ gap: 8 }}>
+          <T c={c} style={{ fontWeight: '700' }}>Гучність</T>
+          <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>
+            Гучність сповіщень регулює телефон: кнопки гучності або «Налаштування» → «Звук». Для екстрених відключень застосунок використовує окремий гучний сигнал.
+          </T>
+          {notificationsAvailable && Platform.OS === 'android' ? (
+            <Btn c={c} kind="secondary" label="Відкрити налаштування сповіщень" onPress={openNotificationSettings} />
+          ) : null}
+        </Card>
       </View>
 
       <View style={{ gap: 10 }}>
@@ -508,7 +521,7 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, aler
           </ExtLink>
         </Card>
         <Btn c={c} kind="secondary" label="Почати налаштування спочатку" onPress={onReset} />
-        <T c={c} style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>Тестова версія 0.1 · демо-графіки</T>
+        <T c={c} style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>Тестова версія 0.5 · демо-графіки</T>
       </View>
     </Screen>
   );

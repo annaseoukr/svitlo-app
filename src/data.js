@@ -91,7 +91,9 @@ function genDay(op, dayIndex) {
 }
 
 export function demoData() {
-  const { date: today } = kyivNow();
+  const { date: today, minutes } = kyivNow();
+  // Як у житті: графік на завтра в демо-даних зʼявляється лише ввечері, з 20:00.
+  const tomorrowPublished = minutes >= 20 * 60;
   const tomorrow = addDays(today, 1);
   const yesterday = addDays(today, -1);
   const day = (op, idx, updated, src) => ({
@@ -107,11 +109,11 @@ export function demoData() {
     operators: {
       cek: { days: {
         [today]: day('cek', 0, `${yesterday}T21:05:00+02:00`, OPERATORS.cek.source),
-        [tomorrow]: day('cek', 1, `${today}T09:40:00+02:00`, OPERATORS.cek.source),
+        ...(tomorrowPublished ? { [tomorrow]: day('cek', 1, `${today}T20:05:00+02:00`, OPERATORS.cek.source) } : {}),
       } },
       dtek: { days: {
         [today]: day('dtek', 0, `${yesterday}T22:10:00+02:00`, OPERATORS.dtek.source),
-        [tomorrow]: day('dtek', 1, `${today}T10:15:00+02:00`, OPERATORS.dtek.source),
+        ...(tomorrowPublished ? { [tomorrow]: day('dtek', 1, `${today}T20:40:00+02:00`, OPERATORS.dtek.source) } : {}),
       } },
     },
     alerts: [],
