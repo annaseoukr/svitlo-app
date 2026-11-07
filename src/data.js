@@ -17,9 +17,15 @@
 //   },
 //   "alerts": [ { "id": "...", "operator": "cek", "title": "...", "text": "...", "at": "ISO" } ]
 // }
+import { Platform } from 'react-native';
+import { load, save } from './storage';
 import { addDays, fmtMin, kyivNow, toMin } from './time';
 
-export const API_URL = null; // напр. 'https://www.dnipro.media/wp-json/dmom/v1/app'
+// Справжні графіки — з плагіна «Застосунок «Світло»» на сайті.
+export const API_URL = 'https://www.dnipro.media/wp-json/dmom-app/v1/schedule';
+// Тестова сторінка в чаті Claude не може звертатися до сайту, тому там — демо-дані.
+export const USE_DEMO = Platform.OS === 'web';
+const CACHE_KEY = 'svitlo.schedule.v1';
 export const NEWS_URL = 'https://www.dnipro.media/wp-json/wp/v2/novyny_dnipro?per_page=15&_embed=wp:featuredmedia';
 export const SITE_NEWS = 'https://www.dnipro.media/novyny-dnipro/';
 export const GROUP_URL = 'https://www.dnipro.media/grupa-svitla-dnipro/';
@@ -120,14 +126,26 @@ export function demoData() {
   };
 }
 
+// Повертає { data, offline, fetchedAt }. Без інтернету — останні збережені дані.
 export async function loadSchedule() {
-  if (API_URL) {
-    try {
-      const r = await fetch(API_URL, { headers: { Accept: 'application/json' } });
-      if (r.ok) return await r.json();
-    } catch (e) { /* немає мережі — показуємо останні збережені */ }
+  if (USE_DEMO) return { data: demoData(), offline: false, fetchedAt: Date.now() };
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const t = setTimeout(() => ctrl?.abort(), 10000);
+  try {
+    const r = await fetch(API_URL, { headers: { Accept: 'application/json' }, signal: ctrl?.signal });
+    if (!r.ok) throw new Error(String(r.status));
+    const data = await r.json();
+    if (!data || !data.operators) throw new Error('format');
+    const fetchedAt = Date.now();
+    save(CACHE_KEY, { data, fetchedAt });
+    return { data, offline: false, fetchedAt };
+  } catch (e) {
+    const cached = await load(CACHE_KEY);
+    if (cached?.data) return { data: cached.data, offline: true, fetchedAt: cached.fetchedAt };
+    return { data: null, offline: true, fetchedAt: null };
+  } finally {
+    clearTimeout(t);
   }
-  return demoData();
 }
 
 const ENT = { '&#8211;': '–', '&#8212;': '—', '&#171;': '«', '&#187;': '»', '&#8217;': 'ʼ', '&#039;': 'ʼ', '&quot;': '"', '&amp;': '&', '&nbsp;': ' ', '&#8230;': '…' };

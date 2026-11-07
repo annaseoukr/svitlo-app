@@ -521,7 +521,7 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
           </ExtLink>
         </Card>
         <Btn c={c} kind="secondary" label="Почати налаштування спочатку" onPress={onReset} />
-        <T c={c} style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>Тестова версія 0.5 · демо-графіки</T>
+        <T c={c} style={{ color: c.muted, fontSize: 13, textAlign: 'center' }}>Версія 0.6</T>
       </View>
     </Screen>
   );

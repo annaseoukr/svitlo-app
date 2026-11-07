@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, View } from 'react-native';
+import { AppState, Animated, Platform, Pressable, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from './src/components';
 import { OPERATORS, loadSchedule, norm } from './src/data';
@@ -61,6 +61,14 @@ function Main() {
   const [toast, setToast] = useState(null);
   const [help, setHelp] = useState(null);
   const [now, setNow] = useState(kyivNow());
+  const [net, setNet] = useState({ offline: false, fetchedAt: null, loaded: false });
+
+  const refresh = useCallback(() => {
+    loadSchedule().then((res) => {
+      if (res.data) setData(res.data);
+      setNet({ offline: res.offline, fetchedAt: res.fetchedAt, loaded: true });
+    });
+  }, []);
 
   useEffect(() => {
     load(KEY).then((s) => {
@@ -68,9 +76,12 @@ function Main() {
       if (merged.remind > 30) merged.remind = 30; // раніше був варіант «за 1 год»
       setSettings(merged);
     });
-    loadSchedule().then(setData);
+    refresh();
     const t = setInterval(() => setNow(kyivNow()), 30000);
-    return () => clearInterval(t);
+    const r = setInterval(refresh, 5 * 60000); // оновлюємо графік кожні 5 хв
+    // і щоразу, коли людина повертається в застосунок
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') { setNow(kyivNow()); refresh(); } });
+    return () => { clearInterval(t); clearInterval(r); sub.remove(); };
   }, []);
 
   // Нагадування перед відключенням перепланувати, коли змінилися черга, налаштування чи графік.
@@ -117,6 +128,13 @@ function Main() {
             <T c={c} display style={{ fontSize: 22, lineHeight: 28, fontWeight: '900' }}>Світло</T>
             <T c={c} style={{ fontSize: 13, color: c.muted }}>Dnipro media</T>
           </View>
+          {net.offline && !data?.demo ? (
+            <View style={{ backgroundColor: c.chip, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <T c={c} style={{ fontSize: 12, lineHeight: 16, fontWeight: '600' }}>
+                {net.fetchedAt ? `Без інтернету · дані на ${new Date(net.fetchedAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}` : 'Немає інтернету'}
+              </T>
+            </View>
+          ) : null}
           {data?.demo ? (
             <View style={{ backgroundColor: c.yellow, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
               <T c={c} style={{ fontSize: 12, lineHeight: 16, color: '#000000', fontWeight: '600' }}>Демо-графіки</T>
