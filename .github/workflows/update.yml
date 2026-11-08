@@ -1,5 +1,5 @@
 # Автооновлення застосунку: після кожної зміни коду в гілці main нова версія публікується
-# в канал «preview», і встановлені застосунки завантажують її самі під час запуску.
+# в канали «preview» (тестові APK) і «production» (Google Play), і встановлені застосунки завантажують її самі під час запуску.
 # Потрібен секрет репозиторію EXPO_TOKEN (Settings → Secrets and variables → Actions).
 name: Оновлення застосунку
 on:
@@ -38,4 +38,6 @@ jobs:
         if: steps.token.outputs.skip != '1'
         env:
           MSG: ${{ github.event.head_commit.message }}
-        run: eas update --channel preview --message "${MSG:-Оновлення}" --non-interactive
+        run: |
+          eas update --channel preview --message "${MSG:-Оновлення}" --non-interactive
+          eas update --channel production --message "${MSG:-Оновлення}" --non-interactive
