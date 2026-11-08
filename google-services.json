@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "595727120213",
+    "project_id": "svitlo-dnipro",
+    "storage_bucket": "svitlo-dnipro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595727120213:android:6634727de551bf96d261dc",
+        "android_client_info": {
+          "package_name": "media.dnipro.svitlo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfvZPtr0ttYneWTI1bSzsACr-lrqttQRc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
