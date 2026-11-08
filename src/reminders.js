@@ -1,7 +1,11 @@
-// Сповіщення на телефоні. Нагадування телефон планує сам, без сервера:
-// вони працюють навіть без інтернету, якщо графік уже завантажено.
+// Сповіщення на телефоні.
+//  - Нагадування перед відключенням і увімкненням телефон планує сам (працюють і без інтернету).
+//  - Про новий графік і екстрені відключення сповіщає сайт (push через сервіс Expo), навіть коли застосунок закритий.
+//  - Звичайні сповіщення: один нейтральний звук і вібрація. Екстрені — окремий гучніший звук, змінити не можна.
+import Constants from 'expo-constants';
 import { Linking, Platform } from 'react-native';
-import { OPERATORS, norm } from './data';
+import { OPERATORS, SITE_API, norm } from './data';
+import { load, save } from './storage';
 import { addDays, fmtMin, kyivNow } from './time';
 
 const native = Platform.OS !== 'web';
@@ -15,20 +19,11 @@ if (native) {
 
 export const notificationsAvailable = native;
 
-// Як приходять нагадування — обирає людина. Звук один, нейтральний (assets/sounds/notify.wav);
-// екстрені відключення мають власний, інший звук (alarm.wav), і його не змінити.
-export const MODES = [
-  { id: 'sound', label: 'Звук і вібрація', hint: 'Рекомендовано: точно не пропустите' },
-  { id: 'vibrate', label: 'Лише вібрація', hint: 'Без звуку, телефон вібрує' },
-  { id: 'screen', label: 'Лише на екрані', hint: 'Без звуку й вібрації' },
-];
+const REMIND = 'svitlo-remind';
 const NOTIFY = 'notify.wav';
 const ALARM = 'alarm.wav';
-const LEGACY = ['reminders', 'remind-default', 'remind-signal', 'remind-bell'];
-
-// На Android звук і вібрацію задає канал сповіщень, і змінити їх потім не можна,
-// тому для кожного способу — свій канал.
-const channelFor = (mode) => `remind-${MODES.some((m) => m.id === mode) ? mode : 'sound'}`;
+const LEGACY = ['reminders', 'remind-default', 'remind-signal', 'remind-bell', 'remind-sound', 'remind-vibrate', 'remind-screen'];
+const PUSH_KEY = 'svitlo.push.v1';
 
 // Дата за Києвом + хвилини від початку доби → момент часу.
 function kyivToDate(iso, minutes) {
@@ -41,29 +36,24 @@ function kyivToDate(iso, minutes) {
 }
 
 let channelsReady = false;
+async function ensureChannels() {
+  if (!N || channelsReady || Platform.OS !== 'android') return;
+  for (const id of LEGACY) { try { await N.deleteNotificationChannelAsync(id); } catch (e) { /* немає — і добре */ } }
+  await N.setNotificationChannelAsync(REMIND, {
+    name: 'Графіки й нагадування', importance: N.AndroidImportance.HIGH,
+    sound: NOTIFY, enableVibrate: true, vibrationPattern: [0, 250, 150, 250],
+  });
+  await N.setNotificationChannelAsync('emergency', {
+    name: 'Екстрені відключення', importance: N.AndroidImportance.MAX,
+    sound: ALARM, enableVibrate: true, vibrationPattern: [0, 500, 250, 500, 250, 500],
+  });
+  channelsReady = true;
+}
+
 async function ensureReady() {
   if (!N) return false;
   try {
-    if (!channelsReady && Platform.OS === 'android') {
-      for (const id of LEGACY) { try { await N.deleteNotificationChannelAsync(id); } catch (e) { /* немає — і добре */ } }
-      await N.setNotificationChannelAsync('remind-sound', {
-        name: 'Нагадування: звук і вібрація', importance: N.AndroidImportance.HIGH,
-        sound: NOTIFY, enableVibrate: true, vibrationPattern: [0, 250, 150, 250],
-      });
-      await N.setNotificationChannelAsync('remind-vibrate', {
-        name: 'Нагадування: лише вібрація', importance: N.AndroidImportance.HIGH,
-        sound: null, enableVibrate: true, vibrationPattern: [0, 250, 150, 250],
-      });
-      await N.setNotificationChannelAsync('remind-screen', {
-        name: 'Нагадування: лише на екрані', importance: N.AndroidImportance.HIGH,
-        sound: null, enableVibrate: false, vibrationPattern: null,
-      });
-      await N.setNotificationChannelAsync('emergency', {
-        name: 'Екстрені відключення', importance: N.AndroidImportance.MAX,
-        sound: ALARM, enableVibrate: true, vibrationPattern: [0, 500, 250, 500, 250, 500],
-      });
-      channelsReady = true;
-    }
+    await ensureChannels();
     let { status } = await N.getPermissionsAsync();
     if (status !== 'granted') ({ status } = await N.requestPermissionsAsync());
     return status === 'granted';
@@ -72,9 +62,7 @@ async function ensureReady() {
   }
 }
 
-function content(title, body, mode) {
-  return { title, body, sound: (mode || 'sound') === 'sound' ? NOTIFY : false };
-}
+const content = (title, body) => ({ title, body, sound: NOTIFY });
 
 export async function scheduleReminders(settings, data) {
   if (!N || !settings?.onboarded || !data) return;
@@ -86,14 +74,12 @@ export async function scheduleReminders(settings, data) {
     const days = data.operators?.[settings.operator]?.days || {};
     const today = kyivNow().date;
     const now = Date.now();
-    const demo = data.demo ? ' (демо-графік)' : '';
-    const channelId = channelFor(settings.notifyMode);
     const at = async (date, minutes, title, body) => {
       const when = kyivToDate(date, minutes);
       if (when.getTime() <= now + 30000) return;
       await N.scheduleNotificationAsync({
-        content: content(title, body, settings.notifyMode),
-        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when, channelId },
+        content: content(title, body),
+        trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when, channelId: REMIND },
       });
     };
     for (const date of [today, addDays(today, 1)]) {
@@ -107,26 +93,26 @@ export async function scheduleReminders(settings, data) {
         // перед вимкненням (якщо світла не було вже з учорашнього вечора — не нагадуємо)
         if (settings.remind && !(iv.s === 0 && prevEndsAtMidnight)) {
           await at(date, iv.s - settings.remind, `Через ${settings.remind} хв відключення`,
-            `Черга ${settings.queue} · ${op.short} · ${iv.from}–${iv.to}${demo}`);
+            `Черга ${settings.queue} · ${op.short} · ${iv.from}–${iv.to}`);
         }
         // перед увімкненням (якщо відключення не триває далі через північ)
         if (settings.remindOn && !(iv.e === 1440 && nextStartsAtMidnight)) {
           await at(date, iv.e - settings.remindOn, `Через ${settings.remindOn} хв увімкнуть світло`,
-            `Черга ${settings.queue} · ${op.short} · за графіком о ${fmtMin(iv.e)}${demo}`);
+            `Черга ${settings.queue} · ${op.short} · за графіком о ${fmtMin(iv.e)}`);
         }
       }
     }
   } catch (e) { /* не вдалося запланувати — застосунок працює далі */ }
 }
 
-// Перевірка: сповіщення обраним способом — через 3 секунди.
-export async function sendTest(title, body, mode) {
+// Перевірка сповіщень — через 3 секунди.
+export async function sendTest(title, body) {
   if (!N) return false;
   if (!(await ensureReady())) return false;
   try {
     await N.scheduleNotificationAsync({
-      content: content(title, body, mode),
-      trigger: { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, channelId: channelFor(mode) },
+      content: content(title, body),
+      trigger: { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 3, channelId: REMIND },
     });
     return true;
   } catch (e) {
@@ -134,11 +120,12 @@ export async function sendTest(title, body, mode) {
   }
 }
 
-// Екстрене відключення: гучний окремий канал. Показуємо один раз на кожне повідомлення.
-const shownAlerts = new Set();
+// Екстрене відключення, яке застосунок побачив сам (запасний шлях до push). Один раз на кожне повідомлення.
 export async function notifyEmergency(alert) {
-  if (!N || !alert || shownAlerts.has(alert.id)) return;
-  shownAlerts.add(alert.id);
+  if (!N || !alert) return;
+  const seen = (await load('svitlo.alerts.seen')) || [];
+  if (seen.includes(alert.id)) return;
+  await save('svitlo.alerts.seen', [...seen.slice(-30), alert.id]);
   if (!(await ensureReady())) return;
   try {
     await N.scheduleNotificationAsync({
@@ -148,7 +135,26 @@ export async function notifyEmergency(alert) {
   } catch (e) { /* ігноруємо */ }
 }
 
-// Системні налаштування сповіщень застосунку — там людина регулює гучність і звук.
+// Повідомити сайт, куди й про що надсилати push: код сповіщень, оператор, черга. Жодних особистих даних.
+export async function registerPush(settings) {
+  if (!N || !settings?.onboarded) return;
+  try {
+    if (!(await ensureReady())) return;
+    const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
+    const { data: token } = await N.getExpoPushTokenAsync({ projectId });
+    const payload = {
+      token, operator: settings.operator, queue: settings.queue,
+      changes: settings.notifyChanges ? 1 : 0, emergency: settings.notifyEmergency ? 1 : 0, platform: Platform.OS,
+    };
+    const last = await load(PUSH_KEY);
+    const day = new Date().toISOString().slice(0, 10);
+    if (last && last.day === day && JSON.stringify(last.payload) === JSON.stringify(payload)) return;
+    const r = await fetch(`${SITE_API}/device`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (r.ok) await save(PUSH_KEY, { day, payload });
+  } catch (e) { /* немає Firebase чи мережі — спробуємо наступного разу */ }
+}
+
+// Системні налаштування сповіщень застосунку — там людина регулює гучність.
 export function openNotificationSettings() {
   try { Linking.openSettings(); } catch (e) { /* ігноруємо */ }
 }

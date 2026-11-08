@@ -4,13 +4,15 @@ import { AppState, Animated, Platform, Pressable, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandCross, T } from './src/components';
 import { OPERATORS, loadSchedule, norm } from './src/data';
-import { AllScreen, HelpScreen, MyScreen, NewsScreen, Onboarding, SettingsScreen } from './src/screens';
-import { notificationsAvailable, notifyEmergency, scheduleReminders, sendTest } from './src/reminders';
+import { AllScreen, MyScreen, NewsScreen, Onboarding, QueuePicker, SettingsScreen } from './src/screens';
+import { registerBackground } from './src/background';
+import { applyUpdateIfAny } from './src/updates';
+import { notificationsAvailable, notifyEmergency, registerPush, scheduleReminders, sendTest } from './src/reminders';
 import { load, remove, save } from './src/storage';
 import { useColors } from './src/theme';
 import { addDays, fmtDate, kyivNow } from './src/time';
 
-const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, remindOn: 0, notifyMode: 'sound', onboarded: false };
+const DEFAULTS = { operator: 'cek', queue: '1.1', notifyChanges: true, notifyEmergency: true, remind: 15, remindOn: 0, onboarded: false };
 const KEY = 'svitlo.settings.v1';
 
 const TABS = [
@@ -59,7 +61,7 @@ function Main() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('my');
   const [toast, setToast] = useState(null);
-  const [help, setHelp] = useState(null);
+  const [picker, setPicker] = useState(false);
   const [now, setNow] = useState(kyivNow());
   const [net, setNet] = useState({ offline: false, fetchedAt: null, loaded: false });
 
@@ -77,35 +79,40 @@ function Main() {
       setSettings(merged);
     });
     refresh();
+    applyUpdateIfAny(); // нова версія застосунку завантажується сама, без перевстановлення
     const t = setInterval(() => setNow(kyivNow()), 30000);
     const r = setInterval(refresh, 5 * 60000); // оновлюємо графік кожні 5 хв
     // і щоразу, коли людина повертається в застосунок
-    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') { setNow(kyivNow()); refresh(); } });
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') { setNow(kyivNow()); refresh(); applyUpdateIfAny(); } });
     return () => { clearInterval(t); clearInterval(r); sub.remove(); };
   }, []);
 
   // Нагадування перед відключенням перепланувати, коли змінилися черга, налаштування чи графік.
   useEffect(() => { scheduleReminders(settings, data); }, [settings, data]);
 
-  // Екстрені відключення приходять у даних (alerts). Показуємо банер на головному екрані
-  // і, якщо людина цього хоче, гучне сповіщення.
-  const alert = (data?.alerts || []).find((a) => a.operator === settings?.operator) || null;
+  // Сайт має знати, куди й про що надсилати сповіщення; фонове оновлення графіка — для нагадувань.
+  useEffect(() => { if (settings?.onboarded) { registerPush(settings); registerBackground(); } }, [settings]);
+
+  // Екстрені відключення приходять у даних (alerts): банер і статус на головному екрані.
+  // Сповіщення надсилає сайт; якщо push ще не дійшов, застосунок покаже його сам — один раз.
+  const alerts = (data?.alerts || []).filter((a) => a.operator === settings?.operator);
+  const alertKey = alerts.map((a) => a.id).join(',');
   useEffect(() => {
-    if (alert && settings?.notifyEmergency && settings?.onboarded) notifyEmergency(alert);
-  }, [alert?.id, settings?.notifyEmergency]);
+    if (settings?.notifyEmergency && settings?.onboarded) alerts.forEach((a) => notifyEmergency(a));
+  }, [alertKey, settings?.notifyEmergency]);
 
   const update = useCallback((s) => { setSettings(s); save(KEY, s); }, []);
 
-  // Один приклад сповіщення з обраним звуком.
+  // Перевірка: так виглядатимуть нагадування.
   const preview = () => {
     const op = OPERATORS[settings.operator].short;
-    const iv = norm(data?.operators?.[settings.operator]?.days?.[now.date]?.queues?.[settings.queue]);
-    const next = iv.find((i) => i.s > now.minutes) || iv[0];
     const m = settings.remind || 15;
     const t = { title: `Через ${m} хв відключення`, body: `Так виглядатимуть нагадування · черга ${settings.queue} · ${op}` };
     if (!notificationsAvailable) { setToast(t); return; }
-    sendTest(t.title, t.body, settings.notifyMode).then((ok) => { if (!ok) setToast(t); });
+    sendTest(t.title, t.body).then((ok) => { if (!ok) setToast(t); });
   };
+
+  const pick = (operator, queue) => { update({ ...settings, operator, queue }); setPicker(false); };
 
   const root = { flex: 1, backgroundColor: c.bg };
   const frame = { flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center' };
@@ -144,12 +151,11 @@ function Main() {
         </View>
 
         <View style={{ flex: 1 }}>
-          {help ? <HelpScreen c={c} topic={help} onBack={() => setHelp(null)} /> : null}
-          {!help && tab === 'my' ? <MyScreen c={c} data={data} settings={settings} now={now} alert={alert} onChangeQueue={() => setTab('settings')} /> : null}
-          {!help && tab === 'all' ? <AllScreen c={c} data={data} settings={settings} now={now} /> : null}
-          {!help && tab === 'news' ? <NewsScreen c={c} /> : null}
-          {!help && tab === 'settings' ? (
-            <SettingsScreen c={c} settings={settings} onChange={update} onPreview={preview} onHelp={setHelp}
+          {tab === 'my' ? <MyScreen c={c} data={data} settings={settings} now={now} alerts={alerts} onChangeQueue={() => setPicker(true)} /> : null}
+          {tab === 'all' ? <AllScreen c={c} data={data} settings={settings} now={now} /> : null}
+          {tab === 'news' ? <NewsScreen c={c} /> : null}
+          {tab === 'settings' ? (
+            <SettingsScreen c={c} settings={settings} onChange={update} onPreview={preview} onChangeQueue={() => setPicker(true)}
               onReset={() => { remove(KEY); setSettings({ ...DEFAULTS }); setTab('my'); }} />
           ) : null}
         </View>
@@ -158,7 +164,7 @@ function Main() {
           {TABS.map((t) => {
             const active = t.id === tab;
             return (
-              <Pressable key={t.id} onPress={() => { setHelp(null); setTab(t.id); }} accessibilityRole="tab" accessibilityState={{ selected: active }}
+              <Pressable key={t.id} onPress={() => setTab(t.id)} accessibilityRole="tab" accessibilityState={{ selected: active }}
                 style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 2 }}>
                 <View style={{ width: 28, height: 4, borderRadius: 2, backgroundColor: active ? (t.id === 'news' ? c.warn : c.accent) : 'transparent' }} />
                 <T c={c} style={{ fontSize: 12, lineHeight: 16, textAlign: 'center', fontWeight: active || t.id === 'news' ? '700' : '500', color: t.id === 'news' ? c.warn : active ? c.accent : c.muted }}>{t.label}</T>
@@ -167,6 +173,7 @@ function Main() {
           })}
         </View>
       </View>
+      <QueuePicker c={c} visible={picker} settings={settings} onPick={pick} onClose={() => setPicker(false)} />
       <Toast c={c} toast={toast} onHide={() => setToast(null)} />
       <StatusBar style="auto" />
     </View>

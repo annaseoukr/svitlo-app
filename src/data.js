@@ -22,13 +22,18 @@ import { load, save } from './storage';
 import { addDays, fmtMin, kyivNow, toMin } from './time';
 
 // Справжні графіки — з плагіна «Застосунок «Світло»» на сайті.
-export const API_URL = 'https://www.dnipro.media/wp-json/dmom-app/v1/schedule';
+export const SITE_API = 'https://www.dnipro.media/wp-json/dmom-app/v1';
+export const API_URL = `${SITE_API}/schedule`;
 // Тестова сторінка в чаті Claude не може звертатися до сайту, тому там — демо-дані.
 export const USE_DEMO = Platform.OS === 'web';
 const CACHE_KEY = 'svitlo.schedule.v1';
 export const NEWS_URL = 'https://www.dnipro.media/wp-json/wp/v2/novyny_dnipro?per_page=15&_embed=wp:featuredmedia';
 export const SITE_NEWS = 'https://www.dnipro.media/novyny-dnipro/';
-export const GROUP_URL = 'https://www.dnipro.media/grupa-svitla-dnipro/';
+// Офіційні сторінки операторів, де за адресою можна дізнатися свою чергу.
+export const CHECK_URLS = {
+  cek: 'https://cek.dp.ua/index.php/cpojivaham/pobutovi-spozhyvachi/viznachennya-chergy.html',
+  dtek: 'https://www.dtek-dnem.com.ua/ua/shutdowns',
+};
 export const SITE = 'https://www.dnipro.media/';
 
 export const OPERATORS = {

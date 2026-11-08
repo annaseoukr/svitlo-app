@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { BrandCross, Btn, Card, ExtLink, Label, Legend, QueueGrid, Segmented, Strip, T, ToggleRow } from './components';
-import { GROUP_URL, OPERATORS, QUEUES, SITE, SITE_NEWS, loadNews, norm, statusNow } from './data';
-import { MODES, notificationsAvailable, openNotificationSettings } from './reminders';
+import { CHECK_URLS, OPERATORS, QUEUES, SITE, SITE_NEWS, loadNews, norm, statusNow } from './data';
+import { notificationsAvailable, openNotificationSettings } from './reminders';
 import { addDays, fmtDate, fmtDuration, fmtUpdated, weekday } from './time';
 
 const OP_OPTIONS = [
@@ -45,48 +45,67 @@ function UnsureButton({ c, label, onPress }) {
 }
 
 // ---------------- Як дізнатися постачальника й чергу ----------------
-export function HelpScreen({ c, topic, onBack }) {
-  const operator = topic === 'operator';
-  const step = (n, title, text) => (
-    <View style={{ flexDirection: 'row', gap: 12 }}>
-      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.yellow, alignItems: 'center', justifyContent: 'center' }}>
-        <T c={c} style={{ color: '#000000', fontWeight: '700' }}>{n}</T>
-      </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <T c={c} style={{ fontWeight: '700' }}>{title}</T>
-        <T c={c} style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>{text}</T>
-      </View>
-    </View>
-  );
+function CheckLink({ c, op, primary }) {
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 20, flexGrow: 1 }}>
+    <ExtLink href={CHECK_URLS[op]} style={{ backgroundColor: primary ? c.accent : c.chip, borderRadius: 14, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
+      <T c={c} style={{ color: primary ? c.accentInk : c.ink, fontWeight: '700', textAlign: 'center' }}>Перевірити на сайті {OPERATORS[op].short}</T>
+    </ExtLink>
+  );
+}
+
+export function HelpScreen({ c, topic, operator = 'cek', onBack }) {
+  const isOperator = topic === 'operator';
+  const first = isOperator ? 'cek' : operator;
+  const second = first === 'cek' ? 'dtek' : 'cek';
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 16, flexGrow: 1 }}>
       <Pressable onPress={onBack} accessibilityRole="button" style={{ alignSelf: 'flex-start', paddingVertical: 6 }}>
         <T c={c} style={{ color: c.accent, fontWeight: '600' }}>‹ Назад</T>
       </Pressable>
       <T c={c} display style={{ fontSize: 24, lineHeight: 30 }}>
-        {operator ? 'Як дізнатися свого постачальника' : 'Як дізнатися свою чергу'}
+        {isOperator ? 'Як дізнатися свого постачальника' : 'Як дізнатися свою чергу'}
       </T>
-      <Card c={c} style={{ gap: 16 }}>
-        {operator ? (
-          <>
-            {step(1, 'Подивіться рахунок за світло', 'У рахунку або договорі вказано оператора системи розподілу: ЦЕК (Центральна енергетична компанія) або ДТЕК Дніпровські електромережі.')}
-            {step(2, 'Або запитайте в ОСББ чи керуючої компанії', 'Там знають, яка компанія обслуговує ваш будинок.')}
-            {step(3, 'Знайдіть адресу в інструкції', 'На Dnipro media зібрали, де ввести адресу й побачити свого оператора та чергу.')}
-          </>
-        ) : (
-          <>
-            {step(1, 'Відкрийте інструкцію Dnipro media', 'Там зібрано, де ввести свою адресу для ЦЕК і для ДТЕК.')}
-            {step(2, 'Введіть адресу на сайті свого оператора', 'Сервіс покаже номер черги, наприклад 3.2.')}
-            {step(3, 'Поверніться й оберіть чергу', 'Її можна змінити будь-коли в налаштуваннях.')}
-          </>
-        )}
-      </Card>
-      <ExtLink href={GROUP_URL} style={{ backgroundColor: c.accent, borderRadius: 14, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 }}>
-        <T c={c} style={{ color: c.accentInk, fontWeight: '700', textAlign: 'center' }}>Відкрити інструкцію на Dnipro media</T>
-      </ExtLink>
+      <T c={c} style={{ color: c.muted }}>
+        {isOperator
+          ? 'Подивіться рахунок за світло або договір: там вказано ЦЕК чи ДТЕК. Або введіть свою адресу на сайті оператора — якщо будинок у його мережі, сайт покаже чергу.'
+          : `Введіть свою адресу на офіційному сайті ${OPERATORS[operator].short} — він покаже номер черги, наприклад 3.2. Потім поверніться й оберіть її.`}
+      </T>
+      <CheckLink c={c} op={first} primary />
+      <CheckLink c={c} op={second} />
       <View style={{ flex: 1 }} />
-      <Btn c={c} kind="secondary" label={operator ? 'Повернутися до вибору постачальника' : 'Повернутися до вибору черги'} onPress={onBack} />
+      <Btn c={c} kind="secondary" label="Повернутися" onPress={onBack} />
     </ScrollView>
+  );
+}
+
+// ---------------- Швидка зміна черги ----------------
+export function QueuePicker({ c, visible, settings, onPick, onClose }) {
+  const [op, setOp] = useState(settings?.operator || 'cek');
+  const [help, setHelp] = useState(false);
+  useEffect(() => { if (visible) { setOp(settings?.operator || 'cek'); setHelp(false); } }, [visible]);
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} accessibilityLabel="Закрити" />
+        <View style={{ backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%' }}>
+          {help ? (
+            <HelpScreen c={c} topic="queue" operator={op} onBack={() => setHelp(false)} />
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 28, gap: 14 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <T c={c} display style={{ fontSize: 22, lineHeight: 28 }}>Моя черга</T>
+                <Pressable onPress={onClose} accessibilityRole="button" style={{ padding: 6 }}>
+                  <T c={c} style={{ color: c.accent, fontWeight: '600' }}>Закрити</T>
+                </Pressable>
+              </View>
+              <Segmented c={c} options={[{ value: 'cek', label: 'ЦЕК' }, { value: 'dtek', label: 'ДТЕК' }]} value={op} onChange={setOp} />
+              <QueueGrid c={c} queues={QUEUES} value={op === settings?.operator ? settings?.queue : null} onChange={(q) => onPick(op, q)} />
+              <UnsureButton c={c} label="Я не знаю свою чергу" onPress={() => setHelp(true)} />
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -135,7 +154,7 @@ export function Onboarding({ c, initial, onDone }) {
   const total = 3;
 
   if (step === -1) return <Intro c={c} onStart={() => setStep(0)} />;
-  if (help) return <HelpScreen c={c} topic={help} onBack={() => setHelp(null)} />;
+  if (help) return <HelpScreen c={c} topic={help} operator={s.operator} onBack={() => setHelp(null)} />;
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 20, flexGrow: 1 }}>
@@ -207,8 +226,21 @@ export function Onboarding({ c, initial, onDone }) {
 }
 
 // ---------------- Мій графік ----------------
-function StatusCard({ c, st, op }) {
+function StatusCard({ c, st, op, emergency }) {
   let title; let line; let extra; let dark = false;
+  if (emergency) {
+    // Під час екстрених відключень графіки не діють — не обіцяємо світло за графіком.
+    return (
+      <View style={{ backgroundColor: c.warn, borderRadius: 22, padding: 20, gap: 6 }} accessibilityRole="summary">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#FFFFFF' }} />
+          <T c={c} style={{ color: '#FFFFFF', fontSize: 14 }}>Зараз</T>
+        </View>
+        <T c={c} display style={{ color: '#FFFFFF', fontSize: 30, lineHeight: 36, fontWeight: '900' }}>Екстрені відключення</T>
+        <T c={c} style={{ color: '#FFFFFF', fontSize: 18, lineHeight: 24, fontWeight: '600' }}>Графіки {op} зараз не діють</T>
+      </View>
+    );
+  }
   if (st.kind === 'off') {
     dark = true;
     title = 'Світла немає';
@@ -319,20 +351,27 @@ function DayBlock({ c, day, queue, nowMin, op, today }) {
   );
 }
 
-export function AlertBanner({ c, alert, demo }) {
+export function AlertBanner({ c, alert }) {
   if (!alert) return null;
   return (
-    <View style={{ backgroundColor: c.warnSoft, borderRadius: 18, padding: 16, gap: 4, borderWidth: 1, borderColor: c.warn }} accessibilityRole="alert">
+    <View style={{ backgroundColor: c.warnSoft, borderRadius: 18, padding: 16, gap: 6, borderWidth: 1, borderColor: c.warn }} accessibilityRole="alert">
       <T c={c} style={{ color: c.warn, fontWeight: '700', fontSize: 14, letterSpacing: 0.4, textTransform: 'uppercase' }}>
         {alert.title}
       </T>
       <T c={c} style={{ fontWeight: '600' }}>{alert.text}</T>
-      <T c={c} style={{ color: c.muted, fontSize: 14 }}>{alert.time || (alert.at ? `${fmtDate(alert.at.slice(0, 10))}, ${alert.at.slice(11, 16)}` : '')}</T>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <T c={c} style={{ color: c.muted, fontSize: 14 }}>{alert.at ? `${fmtDate(alert.at.slice(0, 10))}, ${alert.at.slice(11, 16)}` : ''}</T>
+        {alert.url ? (
+          <ExtLink href={alert.url}>
+            <T c={c} style={{ color: c.warn, fontWeight: '700' }}>Читати новину ›</T>
+          </ExtLink>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-export function MyScreen({ c, data, settings, now, alert, onChangeQueue }) {
+export function MyScreen({ c, data, settings, now, alerts = [], onChangeQueue }) {
   const [which, setWhich] = useState('today');
   const op = OPERATORS[settings.operator];
   const days = data?.operators?.[settings.operator]?.days || {};
@@ -340,10 +379,12 @@ export function MyScreen({ c, data, settings, now, alert, onChangeQueue }) {
   const tomorrow = addDays(today, 1);
   const st = statusNow(days[today], days[tomorrow], settings.queue, now.minutes);
   const showDate = which === 'today' ? today : tomorrow;
+  // Екстрені відключення (з новини плагіна або повідомлення редакції) змінюють головний статус.
+  const emergency = alerts.find((a) => (a.kind || 'emergency') === 'emergency') || null;
 
   return (
     <Screen c={c}>
-      <AlertBanner c={c} alert={alert} demo={data?.demo} />
+      {alerts.map((a) => <AlertBanner key={a.id} c={c} alert={a} />)}
       <Pressable onPress={onChangeQueue} accessibilityRole="button" accessibilityLabel="Змінити чергу"
         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View>
@@ -353,7 +394,7 @@ export function MyScreen({ c, data, settings, now, alert, onChangeQueue }) {
         <T c={c} style={{ color: c.accent, fontWeight: '600' }}>Змінити</T>
       </Pressable>
 
-      <StatusCard c={c} st={st} op={op.short} />
+      <StatusCard c={c} st={st} op={op.short} emergency={emergency} />
 
       <Segmented c={c} value={which} onChange={setWhich} options={[
         { value: 'today', label: 'Сьогодні', sub: fmtDate(today) },
@@ -362,11 +403,11 @@ export function MyScreen({ c, data, settings, now, alert, onChangeQueue }) {
       <T c={c} style={{ color: c.muted, marginTop: -6 }}>{weekday(showDate)}, {fmtDate(showDate)}</T>
       <DayBlock c={c} day={days[showDate]} queue={settings.queue} nowMin={which === 'today' ? now.minutes : null} op={op.short} today={today} />
 
-      <ExtLink href={GROUP_URL}>
+      <ExtLink href={CHECK_URLS[settings.operator]}>
         <Card c={c} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <T c={c} style={{ fontWeight: '700' }}>Як дізнатися свою чергу</T>
-            <T c={c} style={{ color: c.muted, fontSize: 14 }}>Покрокова інструкція на Dnipro media</T>
+            <T c={c} style={{ fontWeight: '700' }}>Перевірити свою чергу</T>
+            <T c={c} style={{ color: c.muted, fontSize: 14 }}>За адресою на офіційному сайті {op.short}</T>
           </View>
           <T c={c} style={{ color: c.accent, fontSize: 22 }}>›</T>
         </Card>
@@ -476,7 +517,7 @@ export function NewsScreen({ c }) {
 }
 
 // ---------------- Налаштування ----------------
-export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHelp }) {
+export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onChangeQueue }) {
   const set = (patch) => onChange({ ...settings, ...patch });
   return (
     <Screen c={c}>
@@ -484,9 +525,15 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
 
       <View style={{ gap: 10 }}>
         <Label c={c}>Мій графік</Label>
-        <Segmented c={c} options={OP_OPTIONS} value={settings.operator} onChange={(v) => set({ operator: v })} />
-        <QueueGrid c={c} queues={QUEUES} value={settings.queue} onChange={(q) => set({ queue: q })} />
-        <UnsureButton c={c} label="Я не знаю свою чергу" onPress={() => onHelp('queue')} />
+        <Pressable onPress={onChangeQueue} accessibilityRole="button" accessibilityLabel="Змінити чергу">
+          <Card c={c} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <T c={c} style={{ color: c.muted, fontSize: 14 }}>{OPERATORS[settings.operator].long}</T>
+              <T c={c} display style={{ fontSize: 22, lineHeight: 28 }}>Черга {settings.queue}</T>
+            </View>
+            <T c={c} style={{ color: c.accent, fontWeight: '700' }}>Змінити</T>
+          </Card>
+        </Pressable>
       </View>
 
       <View style={{ gap: 10 }}>
@@ -494,36 +541,15 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
         <Card c={c} style={{ paddingVertical: 6 }}>
           <ToggleRow c={c} label="Новий графік і зміни" hint={`Для черги ${settings.queue}`} value={settings.notifyChanges} onChange={(v) => set({ notifyChanges: v })} />
           <View style={{ height: 1, backgroundColor: c.line }} />
-          <ToggleRow c={c} label="Екстрені відключення" hint="Гучне сповіщення й повідомлення на головному екрані" value={settings.notifyEmergency} onChange={(v) => set({ notifyEmergency: v })} />
+          <ToggleRow c={c} label="Екстрені відключення" hint="Окремий гучніший сигнал і повідомлення на головному екрані" value={settings.notifyEmergency} onChange={(v) => set({ notifyEmergency: v })} />
         </Card>
         <T c={c} style={{ fontWeight: '600' }}>Нагадувати перед відключенням</T>
         <Segmented c={c} options={REMIND_OPTIONS} value={settings.remind} onChange={(v) => set({ remind: v })} />
         <T c={c} style={{ fontWeight: '600' }}>Нагадувати перед увімкненням світла</T>
         <Segmented c={c} options={REMIND_OPTIONS} value={settings.remindOn || 0} onChange={(v) => set({ remindOn: v })} />
-      </View>
-
-      <View style={{ gap: 10 }}>
-        <Label c={c}>Як сповіщати</Label>
-        <Card c={c} style={{ paddingVertical: 4, paddingHorizontal: 0 }}>
-          {MODES.map((m, k) => {
-            const active = (settings.notifyMode || 'sound') === m.id;
-            return (
-              <Pressable key={m.id} onPress={() => set({ notifyMode: m.id })} accessibilityRole="radio" accessibilityState={{ checked: active }}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: k ? 1 : 0, borderTopColor: c.line }}>
-                <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: active ? c.accent : c.muted, alignItems: 'center', justifyContent: 'center' }}>
-                  {active ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: c.accent }} /> : null}
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <T c={c} style={{ fontWeight: '600' }}>{m.label}</T>
-                  <T c={c} style={{ fontSize: 14, lineHeight: 19, color: c.muted }}>{m.hint}</T>
-                </View>
-              </Pressable>
-            );
-          })}
-        </Card>
         <Btn c={c} label="Перевірити сповіщення" onPress={onPreview} />
         <T c={c} style={{ color: c.muted, fontSize: 14, lineHeight: 19 }}>
-          Про екстрені відключення застосунок завжди сповіщає окремим гучнішим сигналом. Гучність регулюють кнопки гучності телефона.
+          Сповіщення приходять зі звуком і вібрацією. Гучність регулюють кнопки гучності телефона.
         </T>
         {notificationsAvailable && Platform.OS === 'android' ? (
           <Btn c={c} kind="secondary" label="Налаштування сповіщень телефона" onPress={openNotificationSettings} />
@@ -535,7 +561,7 @@ export function SettingsScreen({ c, settings, onChange, onReset, onPreview, onHe
         <Card c={c} style={{ gap: 10 }}>
           <T c={c}>Застосунок Dnipro media. Графіки беремо з офіційних каналів ЦЕК і ДТЕК, редакція перевіряє дані.</T>
           <T c={c} style={{ color: c.muted, fontSize: 14 }}>
-            Застосунок не просить імені, телефону чи адреси й не визначає місцезнаходження. Оператор і черга зберігаються лише на цьому телефоні.
+            Застосунок не просить імені, телефону чи адреси й не визначає місцезнаходження. Щоб надсилати сповіщення, він передає на сайт Dnipro media лише анонімний код сповіщень, оператора й чергу.
           </T>
           <ExtLink href={SITE}>
             <T c={c} style={{ color: c.accent, fontWeight: '600' }}>dnipro.media ›</T>

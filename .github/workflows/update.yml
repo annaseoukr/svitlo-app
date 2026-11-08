@@ -1,0 +1,41 @@
+# Автооновлення застосунку: після кожної зміни коду в гілці main нова версія публікується
+# в канал «preview», і встановлені застосунки завантажують її самі під час запуску.
+# Потрібен секрет репозиторію EXPO_TOKEN (Settings → Secrets and variables → Actions).
+name: Оновлення застосунку
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Перевірити EXPO_TOKEN
+        id: token
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "Секрет EXPO_TOKEN не додано — оновлення не публікуємо."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.skip != '1'
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.skip != '1'
+        with:
+          node-version: 20
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        if: steps.token.outputs.skip != '1'
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+        if: steps.token.outputs.skip != '1'
+      - name: Опублікувати оновлення
+        if: steps.token.outputs.skip != '1'
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+        run: eas update --channel preview --message "${MSG:-Оновлення}" --non-interactive
