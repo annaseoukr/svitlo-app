@@ -25,12 +25,13 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.token.outputs.skip != '1'
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - uses: expo/expo-github-action@v8
         if: steps.token.outputs.skip != '1'
         with:
           eas-version: latest
+          packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci
         if: steps.token.outputs.skip != '1'
@@ -39,5 +40,5 @@ jobs:
         env:
           MSG: ${{ github.event.head_commit.message }}
         run: |
-          eas update --channel preview --message "${MSG:-Оновлення}" --non-interactive
-          eas update --channel production --message "${MSG:-Оновлення}" --non-interactive
+          eas update --channel preview --environment preview --message "${MSG:-Оновлення}" --non-interactive
+          eas update --channel production --environment production --message "${MSG:-Оновлення}" --non-interactive
