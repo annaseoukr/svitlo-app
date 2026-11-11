@@ -327,26 +327,16 @@ function DayBlock({ c, day, queue, nowMin, op, today }) {
                 </View>
               );
             })}
-            {nowMin == null ? <T c={c} style={{ color: c.muted, fontSize: 14, marginTop: 4 }}>Разом без світла: {fmtDuration(total)}</T> : null}
           </View>
         </>
       ) : null}
-      <View style={{ height: 1, backgroundColor: c.line }} />
-      <View style={{ gap: 10 }}>
-        <T c={c} style={{ color: c.muted, fontSize: 14 }}>Оновлено {fmtUpdated(day.updated_at, today)} · {op}</T>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {day.news_url ? (
-            <ExtLink href={day.news_url} style={{ backgroundColor: c.accentSoft, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-              <T c={c} style={{ color: c.accent, fontWeight: '600', fontSize: 15 }}>Новина на Dnipro media</T>
-            </ExtLink>
-          ) : null}
-          {day.source_url ? (
-            <ExtLink href={day.source_url} style={{ backgroundColor: c.chip, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
-              <T c={c} style={{ fontWeight: '600', fontSize: 15 }}>Джерело: {op}</T>
-            </ExtLink>
-          ) : null}
+      {iv.length ? (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: c.chip, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
+          <T c={c} style={{ fontWeight: '600', fontSize: 15 }}>Разом без світла{nowMin != null ? ' за добу' : ''}</T>
+          <T c={c} display style={{ fontSize: 18, fontVariant: ['tabular-nums'] }}>{fmtDuration(total)}</T>
         </View>
-      </View>
+      ) : null}
+      <T c={c} style={{ color: c.muted, fontSize: 14 }}>Оновлено {fmtUpdated(day.updated_at, today)} · {op}</T>
     </Card>
   );
 }
