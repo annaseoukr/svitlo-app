@@ -111,7 +111,7 @@ export function Label({ c, children }) {
   return <T c={c} style={{ fontSize: 13, lineHeight: 18, letterSpacing: 0.6, textTransform: 'uppercase', color: c.muted, fontWeight: '600' }}>{children}</T>;
 }
 
-// Смуга доби 00:00–24:00: зелене — світло є, темне — відключення, помаранчева риска — зараз.
+// Смуга доби 00:00–24:00: зелене — світло має бути, темне — відключення, помаранчева риска — зараз.
 export function Strip({ c, intervals, nowMin, height = 30, labels = true, radius = 8 }) {
   return (
     <View>
@@ -150,7 +150,7 @@ export function Legend({ c }) {
   );
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
-      {item(c.on, 'Світло є')}
+      {item(c.on, 'Світло має бути')}
       {item(c.off, 'Відключення')}
       {item(c.now, 'Зараз')}
     </View>

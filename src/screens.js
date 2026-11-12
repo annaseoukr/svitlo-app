@@ -247,15 +247,15 @@ function StatusCard({ c, st, op, emergency }) {
     line = `Увімкнуть о ${st.until}${st.tomorrowEnd ? ' завтра' : ''}`;
     extra = `Ще ${fmtDuration(st.left)}`;
   } else if (st.kind === 'on' && st.next) {
-    title = 'Світло є';
+    title = 'Світло має бути';
     line = `Відключення ${st.next}–${st.nextEnd}`;
     extra = `Через ${fmtDuration(st.left)}`;
   } else if (st.kind === 'on' && st.nextTomorrow) {
-    title = 'Світло є';
+    title = 'Світло має бути';
     line = 'Сьогодні відключень більше немає';
     extra = `Завтра з ${st.nextTomorrow}`;
   } else if (st.kind === 'on') {
-    title = 'Світло є';
+    title = 'Світло має бути';
     line = st.tomorrowKnown ? 'Сьогодні й завтра відключень немає' : 'Сьогодні відключень більше немає';
   } else if (st.kind === 'cancelled') {
     title = 'Графіки скасовано';
