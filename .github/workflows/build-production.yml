@@ -1,0 +1,25 @@
+# Збірка для Google Play (файл .aab) на серверах Expo.
+# Запускається, коли змінюється файл .github/build-production.txt (або вручну: Actions → «Збірка для Google Play» → Run workflow).
+# Не чекає завершення: збірку видно на expo.dev → Builds.
+name: Збірка для Google Play
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/build-production.txt']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - run: eas build --platform android --profile production --non-interactive --no-wait
